@@ -18,68 +18,7 @@ import { useNavigate } from "react-router-dom";
 import API from "../../api/axios";
 import MedicineCard from "./MedicineCard";
 
-const fallbackMedicines = [
-  {
-    _id: "sample-1",
-    name: "Dolo 650mg Tablet (Paracetamol)",
-    price: 32,
-    category: "Pain Relief",
-    description: "Fast relief from fever, headache, body aches, and flu symptoms.",
-    prescriptionRequired: false,
-    stock: 45,
-    image: "",
-  },
-  {
-    _id: "sample-2",
-    name: "Limcee 500mg Vitamin C Chewable",
-    price: 28,
-    category: "Vitamins & Supplements",
-    description: "Daily immunity booster with pure ascorbic acid for vitality.",
-    prescriptionRequired: false,
-    stock: 120,
-    image: "",
-  },
-  {
-    _id: "sample-3",
-    name: "Dr. Morepen Digital BP Monitor",
-    price: 1350,
-    category: "Medical Devices",
-    description: "Clinical grade automatic blood pressure and pulse monitor.",
-    prescriptionRequired: false,
-    stock: 8,
-    image: "",
-  },
-  {
-    _id: "sample-4",
-    name: "Augmentin 625 Duo Tablet",
-    price: 185,
-    category: "Antibiotics",
-    description: "Broad-spectrum antibacterial medication for respiratory infections.",
-    prescriptionRequired: true,
-    stock: 25,
-    image: "",
-  },
-  {
-    _id: "sample-5",
-    name: "Accu-Chek Active Blood Glucose Meter",
-    price: 899,
-    category: "Diabetes Care",
-    description: "Accurate blood sugar monitoring in under 5 seconds with 10 test strips.",
-    prescriptionRequired: false,
-    stock: 14,
-    image: "",
-  },
-  {
-    _id: "sample-6",
-    name: "Becosules Performance Multi-Mineral",
-    price: 165,
-    category: "Vitamins & Supplements",
-    description: "Complete daily vitality with B-complex, zinc, and amino acids.",
-    prescriptionRequired: false,
-    stock: 60,
-    image: "",
-  },
-];
+const fallbackMedicines = [];
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -179,10 +118,10 @@ const MedicalShopSections = () => {
         const profileRes = responses[1];
 
         const fetchedItems = medicineRes?.data?.medicines;
-        if (Array.isArray(fetchedItems) && fetchedItems.length > 0) {
+        if (Array.isArray(fetchedItems)) {
           setProducts(fetchedItems);
         } else {
-          setProducts(fallbackMedicines);
+          setProducts([]);
         }
 
         if (profileRes) {
@@ -197,8 +136,7 @@ const MedicalShopSections = () => {
         }
       } catch (error) {
         console.error("Error fetching medicines/wishlist:", error);
-        // Fallback to sample medical products so UI remains professional
-        setProducts(fallbackMedicines);
+        setProducts([]);
         setWishlistIds([]);
       } finally {
         setLoading(false);

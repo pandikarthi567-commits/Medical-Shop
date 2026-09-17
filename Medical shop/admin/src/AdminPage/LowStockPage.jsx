@@ -63,129 +63,8 @@ const CalendarTableIcon = ({ className = "w-5 h-5 text-emerald-600" }) => (
   </svg>
 );
 
-// Sample baseline medicines matching the reference screenshot exactly
-const DEFAULT_EXPIRY_MEDICINES = [
-  {
-    _id: "exp-001",
-    name: "Paracetamol 500mg",
-    brand: "Crocin",
-    category: "Pain Relief",
-    batchNo: "BCH001",
-    expiryDate: "2026-09-15",
-    daysLeft: -3,
-    stock: 5,
-    price: 12.5,
-    status: "Expired",
-  },
-  {
-    _id: "exp-002",
-    name: "Amoxicillin 250mg",
-    brand: "Alkem",
-    category: "Antibiotics",
-    batchNo: "BCH002",
-    expiryDate: "2026-09-22",
-    daysLeft: 7,
-    stock: 8,
-    price: 25.0,
-    status: "Expiring Soon",
-  },
-  {
-    _id: "exp-003",
-    name: "Cetirizine 10mg",
-    brand: "Zyrtec",
-    category: "Allergy Care",
-    batchNo: "BCH003",
-    expiryDate: "2026-09-30",
-    daysLeft: 15,
-    stock: 3,
-    price: 18.0,
-    status: "Expiring Soon",
-  },
-  {
-    _id: "exp-004",
-    name: "Pantoprazole 40mg",
-    brand: "Pantocid",
-    category: "Gastro Care",
-    batchNo: "BCH004",
-    expiryDate: "2026-10-05",
-    daysLeft: 20,
-    stock: 6,
-    price: 22.0,
-    status: "Expiring Soon",
-  },
-  {
-    _id: "exp-005",
-    name: "Azithromycin 500mg",
-    brand: "Zithro",
-    category: "Antibiotics",
-    batchNo: "BCH005",
-    expiryDate: "2026-10-12",
-    daysLeft: 27,
-    stock: 4,
-    price: 32.0,
-    status: "Expiring Soon",
-  },
-  {
-    _id: "exp-006",
-    name: "Metformin 500mg",
-    brand: "Glycomet",
-    category: "Diabetes Care",
-    batchNo: "BCH006",
-    expiryDate: "2026-12-18",
-    daysLeft: 106,
-    stock: 210,
-    price: 10.0,
-    status: "Valid",
-  },
-  {
-    _id: "exp-007",
-    name: "Amlodipine 5mg",
-    brand: "Amlong",
-    category: "Cardiac Care",
-    batchNo: "BCH007",
-    expiryDate: "2027-01-25",
-    daysLeft: 132,
-    stock: 145,
-    price: 15.0,
-    status: "Valid",
-  },
-  {
-    _id: "exp-008",
-    name: "Ibuprofen 400mg",
-    brand: "Ibugesic",
-    category: "Pain Relief",
-    batchNo: "BCH008",
-    expiryDate: "2027-02-10",
-    daysLeft: 148,
-    stock: 75,
-    price: 14.0,
-    status: "Valid",
-  },
-  {
-    _id: "exp-009",
-    name: "ORS Powder",
-    brand: "Electral",
-    category: "Wellness",
-    batchNo: "BCH009",
-    expiryDate: "2027-02-28",
-    daysLeft: 166,
-    stock: 60,
-    price: 20.0,
-    status: "Valid",
-  },
-  {
-    _id: "exp-010",
-    name: "Vitamin D3 60000 IU",
-    brand: "Uprise D3",
-    category: "Vitamins",
-    batchNo: "BCH010",
-    expiryDate: "2027-03-15",
-    daysLeft: 181,
-    stock: 32,
-    price: 85.0,
-    status: "Valid",
-  },
-];
+// ── Empty Default (strictly live database items) ───
+const DEFAULT_EXPIRY_MEDICINES = [];
 
 const formatDate = (val) => {
   if (!val) return "N/A";
@@ -274,7 +153,12 @@ const LowStockPage = () => {
       }
 
       if (liveData && liveData.length > 0) {
-        const normalizedLive = liveData.map((m, i) => {
+        const cleanData = liveData.filter((m) => {
+          const name = (m.name || "").toLowerCase();
+          return !name.includes("(batch ") && !m.batchNo?.toLowerCase().startsWith("bch1");
+        });
+
+        const normalizedLive = cleanData.map((m, i) => {
           const days = calculateDaysLeft(m.expiryDate);
           let status = "Valid";
           if (days < 0) status = "Expired";
@@ -288,18 +172,13 @@ const LowStockPage = () => {
           };
         });
 
-        // Merge baseline sample to guarantee exact visual consistency matching reference
-        const liveNames = new Set(normalizedLive.map((m) => m.name.toLowerCase()));
-        const missingSamples = DEFAULT_EXPIRY_MEDICINES.filter(
-          (sm) => !liveNames.has(sm.name.toLowerCase())
-        );
-        setMedicines([...missingSamples, ...normalizedLive]);
+        setMedicines(normalizedLive);
       } else {
-        setMedicines(DEFAULT_EXPIRY_MEDICINES);
+        setMedicines([]);
       }
     } catch (err) {
       console.error(err);
-      setMedicines(DEFAULT_EXPIRY_MEDICINES);
+      setMedicines([]);
     } finally {
       setLoading(false);
     }

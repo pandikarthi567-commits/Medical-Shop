@@ -18,6 +18,8 @@ import AdminOffersPage from "./AdminPage/AdminOffersPage";
 import ReportsPage from "./AdminPage/ReportsPage";
 import PurchasePage from "./AdminPage/PurchasePage";
 import InventoryPage from "./AdminPage/InventoryPage";
+import AddMedicine from "./AdminPage/AddMedicine";
+import ManageMedicinesPage from "./AdminPage/ManageMedicinesPage";
 
 function App() {
   return (
@@ -54,8 +56,9 @@ function App() {
           {/* Medicines & Inventory */}
           <Route path="/admin/medicines" element={<InventoryPage />} />
           <Route path="/admin/inventory" element={<InventoryPage />} />
-          <Route path="/admin/medicines/manage" element={<EditMedicineListPage />} />
-          <Route path="/admin/medicines/add" element={<PurchasePage />} />
+          <Route path="/admin/medicines/manage" element={<ManageMedicinesPage />} />
+          <Route path="/admin/medicines/list" element={<ManageMedicinesPage />} />
+          <Route path="/admin/medicines/add" element={<AddMedicine />} />
           <Route path="/admin/medicines/edit/:id" element={<EditMedicine />} />
           <Route path="/admin/medicines/low-stock" element={<LowStockPage />} />
           <Route path="/admin/expiry" element={<ExpiryManagementPage />} />

@@ -10,6 +10,7 @@ const {
   getMedicineByIdForAdmin,
   updateMedicine,
   deleteMedicine,
+  clearAllMedicines,
   getLowStockMedicines,
   getMyWishlist,
   getExpiringMedicines,
@@ -45,6 +46,7 @@ router.get("/featured/list", getFeaturedMedicines);
 router.get("/admin/all", getAllMedicines);
 router.post("/admin/add", upload.single("image"), addMedicine);
 router.post("/admin/low-stock/alert", alertLowStock);
+router.delete("/admin/clear-all", clearAllMedicines);
 router.get("/admin/:id", getMedicineByIdForAdmin);
 router.put("/admin/:id", upload.single("image"), updateMedicine);
 router.delete("/admin/:id", deleteMedicine);

@@ -259,6 +259,24 @@ const importSuppliers = async (req, res) => {
   }
 };
 
+// DELETE /api/suppliers/clear/all
+const clearAllSuppliers = async (req, res) => {
+  try {
+    const result = await Supplier.deleteMany({});
+    return res.status(200).json({
+      success: true,
+      message: `Cleared ${result.deletedCount} suppliers successfully`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("Clear suppliers error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Server error while clearing suppliers",
+    });
+  }
+};
+
 module.exports = {
   getSuppliers,
   getSupplierById,
@@ -267,4 +285,6 @@ module.exports = {
   deleteSupplier,
   getSupplierLocations,
   importSuppliers,
+  clearAllSuppliers,
 };
+

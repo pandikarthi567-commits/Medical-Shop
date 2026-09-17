@@ -9,10 +9,12 @@ const {
   deleteCustomer,
   getCustomerLocations,
   importCustomers,
+  clearAllCustomers,
 } = require("../controllers/customerController");
 
 router.get("/locations/list", getCustomerLocations);
 router.post("/import", importCustomers);
+router.delete("/clear/all", clearAllCustomers);
 
 router.get("/", getCustomers);
 router.post("/", addCustomer);

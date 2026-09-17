@@ -13,6 +13,7 @@ import {
   ShoppingCart,
   UserRound,
   Hash,
+  Trash2,
 } from "lucide-react";
 import API from "../api/axios";
 
@@ -96,6 +97,7 @@ const OrderDetailsPage = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchOrderDetails = async () => {
@@ -188,6 +190,24 @@ const OrderDetailsPage = () => {
     );
   }
 
+  const handleDeleteOrder = async () => {
+    if (!window.confirm(`Are you sure you want to permanently delete order ${order?.orderId || order?._id}?`)) {
+      return;
+    }
+    try {
+      setDeleting(true);
+      const adminToken = localStorage.getItem("adminToken");
+      await API.delete(`/admin/orders/${id}`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      navigate("/admin/orders");
+    } catch (err) {
+      console.error("Delete order error:", err);
+      alert(err?.response?.data?.message || "Failed to delete order");
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -202,7 +222,7 @@ const OrderDetailsPage = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span
               className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${getStatusBadge(
                 order.paymentStatus,
@@ -218,6 +238,15 @@ const OrderDetailsPage = () => {
             >
               Order: {order.orderStatus || "N/A"}
             </span>
+            <button
+              type="button"
+              onClick={handleDeleteOrder}
+              disabled={deleting}
+              className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+            >
+              <Trash2 size={16} />
+              {deleting ? "Deleting..." : "Delete Order"}
+            </button>
             <button
               type="button"
               onClick={() => navigate("/admin/orders")}

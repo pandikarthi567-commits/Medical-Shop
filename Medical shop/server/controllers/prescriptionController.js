@@ -73,7 +73,27 @@ const getAllPrescriptionsForAdmin = async (req, res) => {
   }
 };
 
+const getMyPrescriptions = async (req, res) => {
+  try {
+    const prescriptions = await Prescription.find({ user: req.user._id })
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: prescriptions.length,
+      prescriptions,
+    });
+  } catch (error) {
+    console.error("Get my prescriptions error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch your prescriptions",
+    });
+  }
+};
+
 module.exports = {
   uploadPrescription,
+  getMyPrescriptions,
   getAllPrescriptionsForAdmin,
 };

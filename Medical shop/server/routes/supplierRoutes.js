@@ -9,10 +9,12 @@ const {
   deleteSupplier,
   getSupplierLocations,
   importSuppliers,
+  clearAllSuppliers,
 } = require("../controllers/supplierController");
 
 router.get("/locations/list", getSupplierLocations);
 router.post("/import", importSuppliers);
+router.delete("/clear/all", clearAllSuppliers);
 
 router.get("/", getSuppliers);
 router.post("/", addSupplier);

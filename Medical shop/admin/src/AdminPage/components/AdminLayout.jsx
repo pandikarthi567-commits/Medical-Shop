@@ -21,6 +21,7 @@ import {
   ExternalLink,
   ShieldCheck,
   Navigation,
+  Pill,
 } from "lucide-react";
 import { clearAdminSession, getAdminUser } from "../../utils/auth";
 
@@ -31,6 +32,12 @@ const navItems = [
     icon: LayoutDashboard,
     hasChevron: false,
     exact: true,
+  },
+  {
+    name: "Manage Medicines",
+    path: "/admin/medicines/manage",
+    icon: Pill,
+    hasChevron: true,
   },
   {
     name: "Sales",

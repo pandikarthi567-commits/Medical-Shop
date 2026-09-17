@@ -17,9 +17,9 @@ import {
   ChevronDown,
   X,
   CheckCircle2,
-  AlertCircle,
   FileText,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import API from "../api/axios";
 import { itemVariants, buttonMotion, containerVariants, tableRowVariants } from "./components/pageMotion";
@@ -306,6 +306,23 @@ const SalesPage = () => {
     }
   };
 
+  const handleClearAllOrders = async () => {
+    if (!window.confirm("Are you sure you want to delete ALL sales & orders from the database? This cannot be undone.")) {
+      return;
+    }
+    try {
+      setLoading(true);
+      await API.delete("/admin/orders/clear/all").catch(() => API.delete("/admin/orders/clear-all"));
+      await fetchOrdersFromDb();
+      alert("All sales orders cleared from database successfully.");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to clear sales records.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <motion.div
       variants={containerVariants}
@@ -325,7 +342,7 @@ const SalesPage = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-4 sm:gap-6 self-start sm:self-auto">
+        <div className="flex items-center gap-3 sm:gap-4 self-start sm:self-auto flex-wrap">
           {/* Breadcrumbs: Home > Sales */}
           <div className="flex items-center gap-2 text-xs sm:text-sm font-medium text-slate-500">
             <Link to="/admin" className="hover:text-emerald-600 transition">
@@ -334,6 +351,17 @@ const SalesPage = () => {
             <span className="text-slate-400 font-light">&gt;</span>
             <span className="text-slate-700 font-semibold">Sales</span>
           </div>
+
+          {orders.length > 0 && (
+            <motion.button
+              {...buttonMotion}
+              onClick={handleClearAllOrders}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-rose-700 shadow-2xs transition-colors cursor-pointer"
+            >
+              <Trash2 size={15} />
+              <span>Clear All Sales</span>
+            </motion.button>
+          )}
 
           {/* New Sale Button with Plus icon */}
           <motion.button

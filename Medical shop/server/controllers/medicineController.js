@@ -66,19 +66,46 @@ const sanitizeImageUrl = (value, fallback = "") => {
   return trimmed;
 };
 
+const path = require("path");
+const fs = require("fs");
+
 const validateCategory = async (categoryName) => {
   if (!categoryName || !String(categoryName).trim()) return null;
 
   const normalized = String(categoryName).trim();
 
-  return await Category.findOne({
+  let category = await Category.findOne({
     name: { $regex: new RegExp(`^${escapeRegex(normalized)}$`, "i") },
     isActive: true,
   });
+
+  if (!category) {
+    try {
+      const slug = normalized
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-");
+
+      category = await Category.create({
+        name: normalized,
+        slug: slug || `cat-${Date.now()}`,
+        isActive: true,
+      });
+    } catch (e) {
+      category = { name: normalized };
+    }
+  }
+
+  return category;
 };
 
 const uploadBufferToCloudinary = (buffer) => {
   return new Promise((resolve, reject) => {
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
+      return reject(new Error("Cloudinary not configured"));
+    }
+
     const stream = cloudinary.uploader.upload_stream(
       {
         folder: "medicines",
@@ -92,6 +119,22 @@ const uploadBufferToCloudinary = (buffer) => {
 
     Readable.from(buffer).pipe(stream);
   });
+};
+
+const saveBufferLocally = async (file) => {
+  try {
+    const uploadsDir = path.join(__dirname, "../uploads");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const filename = `med-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname || "image.png") || ".png"}`;
+    const filePath = path.join(uploadsDir, filename);
+    fs.writeFileSync(filePath, file.buffer);
+    return `/uploads/${filename}`;
+  } catch (err) {
+    console.error("Local save error:", err);
+    return `data:${file.mimetype || "image/png"};base64,${file.buffer.toString("base64")}`;
+  }
 };
 
 const checkInventoryAlerts = async (medicine) => {
@@ -128,6 +171,7 @@ const addMedicine = async (req, res) => {
       reviewCount,
       badge,
       brand,
+      batchNo,
       lowStockThreshold,
       image,
     } = req.body;
@@ -149,7 +193,7 @@ const addMedicine = async (req, res) => {
     if (!existingCategory) {
       return res.status(400).json({
         success: false,
-        message: "Selected category does not exist or is inactive",
+        message: "Selected category could not be processed",
       });
     }
 
@@ -220,11 +264,20 @@ const addMedicine = async (req, res) => {
     let imageUrl = "";
 
     if (req.file?.buffer) {
-      const uploadedImage = await uploadBufferToCloudinary(req.file.buffer);
-      imageUrl = uploadedImage.secure_url;
+      try {
+        const uploadedImage = await uploadBufferToCloudinary(req.file.buffer);
+        imageUrl = uploadedImage.secure_url;
+      } catch (cloudErr) {
+        imageUrl = await saveBufferLocally(req.file);
+      }
     } else if (typeof image === "string" && image.trim()) {
       imageUrl = sanitizeImageUrl(image, "");
     }
+
+    const generatedBatch =
+      typeof batchNo === "string" && batchNo.trim()
+        ? batchNo.trim()
+        : `BCH${Math.floor(100 + Math.random() * 900)}`;
 
     const medicine = await Medicine.create({
       name: String(name).trim(),
@@ -232,6 +285,7 @@ const addMedicine = async (req, res) => {
       price: parsedPrice,
       oldPrice: parsedOldPrice,
       stock: parsedStock,
+      batchNo: generatedBatch,
       lowStockThreshold: parsedThreshold,
       category: existingCategory.name,
       prescriptionRequired: toBoolean(prescriptionRequired, false),
@@ -352,7 +406,9 @@ const getMedicines = async (req, res) => {
 
 const getAllMedicines = async (req, res) => {
   try {
-    const medicines = await Medicine.find().sort({ createdAt: -1 });
+    const medicines = await Medicine.find({
+      name: { $not: /\(Batch \d+\)/i },
+    }).sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -454,8 +510,12 @@ const updateMedicine = async (req, res) => {
     let imageUrl = medicine.image;
 
     if (req.file?.buffer) {
-      const uploadedImage = await uploadBufferToCloudinary(req.file.buffer);
-      imageUrl = uploadedImage.secure_url;
+      try {
+        const uploadedImage = await uploadBufferToCloudinary(req.file.buffer);
+        imageUrl = uploadedImage.secure_url;
+      } catch (cloudErr) {
+        imageUrl = await saveBufferLocally(req.file);
+      }
     } else if (body.image !== undefined && body.image !== "") {
       imageUrl = sanitizeImageUrl(body.image, medicine.image || "");
     }
@@ -499,6 +559,17 @@ const updateMedicine = async (req, res) => {
 
     if (body.brand !== undefined) {
       medicine.brand = body.brand || "";
+    }
+
+    if (body.batchNo !== undefined) {
+      medicine.batchNo = String(body.batchNo).trim() || medicine.batchNo;
+    }
+
+    if (body.prescriptionRequired !== undefined) {
+      medicine.prescriptionRequired = toBoolean(
+        body.prescriptionRequired,
+        medicine.prescriptionRequired
+      );
     }
 
     if (body.price !== undefined) {
@@ -665,6 +736,23 @@ const deleteMedicine = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Server error while deleting medicine",
+    });
+  }
+};
+
+const clearAllMedicines = async (req, res) => {
+  try {
+    const result = await Medicine.deleteMany({});
+    return res.status(200).json({
+      success: true,
+      message: `Cleared ${result.deletedCount} medicines from database.`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("Clear all medicines error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Server error while clearing medicines",
     });
   }
 };
@@ -1175,6 +1263,7 @@ module.exports = {
   getMedicineByIdForAdmin,
   updateMedicine,
   deleteMedicine,
+  clearAllMedicines,
   getLowStockMedicines,
   getExpiringMedicines,
   getMedicineCategories,

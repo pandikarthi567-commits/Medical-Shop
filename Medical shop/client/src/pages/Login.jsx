@@ -1,56 +1,61 @@
 /* eslint-disable no-unused-vars */
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Phone,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  User,
   ShieldCheck,
   ArrowRight,
-  User,
-  RotateCcw,
   Sparkles,
-  Lock,
   CheckCircle2,
   AlertCircle,
-  Truck,
+  KeyRound,
+  RotateCcw,
   HeartPulse,
+  Truck,
+  MapPin,
 } from "lucide-react";
 import api from "../api/axios";
 
 const pageVariants = {
-  initial: { opacity: 0, y: 20 },
+  initial: { opacity: 0, y: 15 },
   animate: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.4, ease: "easeOut" },
+    transition: { duration: 0.35, ease: "easeOut" },
   },
   exit: {
     opacity: 0,
-    y: -20,
-    transition: { duration: 0.25, ease: "easeInOut" },
+    y: -15,
+    transition: { duration: 0.2, ease: "easeInOut" },
   },
 };
 
-const normalizePhone = (value = "") =>
-  String(value).replace(/\D/g, "").slice(0, 10);
-
-const normalizeOtp = (value = "") =>
-  String(value).replace(/\D/g, "").slice(0, 6);
+const MODE = {
+  LOGIN: "LOGIN",
+  REGISTER: "REGISTER",
+  EMAIL_OTP: "EMAIL_OTP",
+};
 
 const Login = () => {
   const navigate = useNavigate();
 
-  const [step, setStep] = useState(1);
-  const [phone, setPhone] = useState("");
+  const [mode, setMode] = useState(MODE.LOGIN);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
   const [otp, setOtp] = useState("");
+  const [otpStep, setOtpStep] = useState(1);
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [testOtp, setTestOtp] = useState("");
   const [timer, setTimer] = useState(0);
-
-  const cleanPhone = useMemo(() => normalizePhone(phone), [phone]);
-  const cleanOtp = useMemo(() => normalizeOtp(otp), [otp]);
 
   useEffect(() => {
     let interval = null;
@@ -62,60 +67,143 @@ const Login = () => {
     };
   }, [timer]);
 
-  const clearInfo = () => {
+  const clearAlerts = () => {
     setMessage("");
     setError("");
   };
 
-  const handleSendOtp = async () => {
-    clearInfo();
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    clearAlerts();
 
-    if (cleanPhone.length !== 10) {
-      setError("Please enter a valid 10-digit mobile number");
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
+      setError("Please enter your email and password");
       return;
     }
 
     try {
       setLoading(true);
-      const { data } = await api.post("/auth/send-otp", { phone: cleanPhone });
+      const { data } = await api.post("/auth/login", {
+        email: cleanEmail,
+        password,
+      });
 
-      setPhone(cleanPhone);
-      setOtp("");
-      setStep(2);
-      setTimer(30);
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("authChanged"));
 
-      if (data?.otpForTesting) {
-        setTestOtp(String(data.otpForTesting));
-        setMessage(`OTP sent successfully! (Test OTP: ${data.otpForTesting})`);
-      } else {
-        setMessage(data?.message || "OTP sent successfully to your mobile");
-      }
+      setMessage("Login successful! Redirecting...");
+      setTimeout(() => {
+        navigate("/profile", { replace: true });
+      }, 500);
     } catch (err) {
-      console.error("Send OTP error:", err);
-      setError(err?.response?.data?.message || "Failed to send OTP. Please try again.");
+      console.error("Login error:", err);
+      setError(
+        err?.response?.data?.message || "Invalid email or password. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async () => {
-    clearInfo();
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
+    clearAlerts();
 
-    if (cleanPhone.length !== 10) {
-      setError("Please enter a valid 10-digit mobile number");
-      setStep(1);
+    const cleanName = name.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanName || !cleanEmail || !password) {
+      setError("Please fill in your name, email, and password");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data } = await api.post("/auth/register", {
+        name: cleanName,
+        email: cleanEmail,
+        password,
+        location: location.trim(),
+      });
+
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        window.dispatchEvent(new Event("authChanged"));
+      }
+
+      setMessage("Account created successfully! Redirecting...");
+      setTimeout(() => {
+        navigate("/profile", { replace: true });
+      }, 500);
+    } catch (err) {
+      console.error("Register error:", err);
+      setError(
+        err?.response?.data?.message || "Failed to create account. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendEmailOtp = async (e) => {
+    if (e) e.preventDefault();
+    clearAlerts();
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data } = await api.post("/auth/send-otp", { email: cleanEmail });
+
+      setOtp("");
+      setOtpStep(2);
+      setTimer(30);
+
+      setMessage(`Verification code sent to ${cleanEmail}. Please check your inbox or spam folder.`);
+    } catch (err) {
+      console.error("Send Email OTP error:", err);
+      setError(
+        err?.response?.data?.message || "Failed to send verification email. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async (e) => {
+    e.preventDefault();
+    clearAlerts();
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = String(otp).replace(/\D/g, "").slice(0, 6);
+
+    if (!cleanEmail) {
+      setError("Email address is missing. Please restart.");
+      setOtpStep(1);
       return;
     }
 
     if (cleanOtp.length !== 6) {
-      setError("Please enter the 6-digit verification OTP");
+      setError("Please enter the 6-digit verification code");
       return;
     }
 
     try {
       setLoading(true);
       const { data } = await api.post("/auth/verify-otp", {
-        phone: cleanPhone,
+        email: cleanEmail,
         otp: cleanOtp,
       });
 
@@ -123,271 +211,505 @@ const Login = () => {
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("authChanged"));
 
-      setMessage(data?.message || "Login successful! Redirecting...");
+      setMessage("Verification successful! Redirecting...");
       setTimeout(() => {
         navigate("/profile", { replace: true });
       }, 500);
     } catch (err) {
-      console.error("Verify OTP error:", err);
-      setError(err?.response?.data?.message || "OTP verification failed. Please recheck.");
+      console.error("Verify Email OTP error:", err);
+      setError(
+        err?.response?.data?.message || "Invalid verification code. Please check your email."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePhoneSubmit = (e) => {
-    e.preventDefault();
-    if (!loading) handleSendOtp();
-  };
-
-  const handleOtpSubmit = (e) => {
-    e.preventDefault();
-    if (!loading) handleVerifyOtp();
-  };
-
-  const handleChangePhone = () => {
-    setStep(1);
-    setOtp("");
-    setTestOtp("");
-    setMessage("");
-    setError("");
-  };
-
   return (
-    <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="min-h-screen bg-slate-50/60 py-8 sm:py-10 lg:py-12 px-4 sm:px-6"
-    >
-      <div className="mx-auto w-full max-w-5xl">
-        <div className="overflow-hidden rounded-3xl sm:rounded-4xl border border-slate-200/80 bg-white shadow-xl shadow-slate-900/5 grid lg:grid-cols-12 min-h-[580px]">
-          {/* Left Col: Healthcare Branding (Col 5) */}
-          <div className="lg:col-span-5 relative flex flex-col justify-between bg-linear-to-br from-emerald-600 via-teal-600 to-emerald-800 text-white p-8 sm:p-10">
-            {/* Background Pattern */}
-            <div className="absolute inset-0 opacity-10 pointer-events-none">
-              <div
-                className="w-full h-full"
-                style={{
-                  backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.4) 1px, transparent 1px)",
-                  backgroundSize: "24px 24px",
-                }}
-              />
+    <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 py-10 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+      <div className="w-full max-w-5xl rounded-[32px] border border-slate-200/80 bg-white shadow-2xl shadow-emerald-950/5 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[580px]">
+        {/* Left Hero Banner */}
+        <div className="lg:col-span-5 bg-linear-to-br from-emerald-600 via-teal-700 to-emerald-800 p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute -right-16 -top-16 w-56 h-56 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -left-16 -bottom-16 w-56 h-56 bg-teal-400/10 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative z-10">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-md px-3.5 py-1 text-xs font-semibold text-emerald-100 mb-6">
+              <Sparkles size={14} />
+              MediCare Patient Portal
             </div>
 
-            <div className="relative z-10">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 border border-white/20 text-xs font-bold tracking-wide mb-6">
-                <HeartPulse size={14} className="text-emerald-200" />
-                <span>MediCare Patient Portal</span>
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-tight">
+              Your Health, Verified &amp; Delivered.
+            </h1>
+
+            <p className="mt-4 text-emerald-100 text-sm leading-relaxed">
+              Sign in securely using your email and password to manage doctor
+              prescriptions, track real-time deliveries, and access authentic
+              pharmaceuticals.
+            </p>
+          </div>
+
+          <div className="mt-8 space-y-3.5 relative z-10">
+            <div className="flex items-center gap-3 rounded-2xl bg-white/10 backdrop-blur-sm p-3.5 text-xs text-emerald-50">
+              <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <ShieldCheck size={16} />
               </div>
-
-              <h1 className="text-2xl sm:text-3xl xl:text-4xl font-black tracking-tight leading-tight">
-                Your Health, Verified & Delivered.
-              </h1>
-
-              <p className="mt-3 text-xs sm:text-sm text-emerald-50/90 leading-relaxed">
-                Sign in securely to manage doctor prescriptions, track real-time deliveries, and access authentic pharmaceuticals.
-              </p>
+              <div>
+                <p className="font-bold">Govt. Registered Chemist</p>
+                <p className="text-[11px] text-emerald-200">
+                  100% Genuine batch verified medicines
+                </p>
+              </div>
             </div>
 
-            {/* Trust Badges */}
-            <div className="relative z-10 space-y-3 pt-8">
-              <div className="flex items-center gap-3 rounded-2xl bg-white/10 backdrop-blur-md p-3.5 border border-white/15 text-xs">
-                <ShieldCheck size={20} className="shrink-0 text-emerald-200" />
-                <div>
-                  <p className="font-bold">Govt. Registered Chemist</p>
-                  <p className="text-[11px] text-emerald-100">100% Genuine batch verified medicines</p>
-                </div>
+            <div className="flex items-center gap-3 rounded-2xl bg-white/10 backdrop-blur-sm p-3.5 text-xs text-emerald-50">
+              <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <Truck size={16} />
               </div>
-
-              <div className="flex items-center gap-3 rounded-2xl bg-white/10 backdrop-blur-md p-3.5 border border-white/15 text-xs">
-                <Truck size={20} className="shrink-0 text-emerald-200" />
-                <div>
-                  <p className="font-bold">Express 30-Min Delivery</p>
-                  <p className="text-[11px] text-emerald-100">Cold-pack protected doorstep dispatch</p>
-                </div>
+              <div>
+                <p className="font-bold">Express 30-Min Delivery</p>
+                <p className="text-[11px] text-emerald-200">
+                  Cold-pack protected doorstep dispatch
+                </p>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Right Col: Interactive Login / OTP Form (Col 7) */}
-          <div className="lg:col-span-7 flex items-center justify-center p-6 sm:p-10 lg:p-12 bg-white">
-            <div className="w-full max-w-md">
-              <AnimatePresence mode="wait">
-                {step === 1 ? (
-                  /* Step 1: Mobile Number Input */
-                  <motion.div
-                    key="step-1"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.3 }}
+        {/* Right Authentication Form Area */}
+        <div className="lg:col-span-7 p-8 sm:p-12 flex flex-col justify-between">
+          <div>
+            {/* Mode Switcher Tabs */}
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-4 mb-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(MODE.LOGIN);
+                  clearAlerts();
+                }}
+                className={`pb-2 px-3 text-sm font-bold transition border-b-2 ${
+                  mode === MODE.LOGIN
+                    ? "border-emerald-600 text-emerald-700"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(MODE.REGISTER);
+                  clearAlerts();
+                }}
+                className={`pb-2 px-3 text-sm font-bold transition border-b-2 ${
+                  mode === MODE.REGISTER
+                    ? "border-emerald-600 text-emerald-700"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Create Account
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(MODE.EMAIL_OTP);
+                  setOtpStep(1);
+                  clearAlerts();
+                }}
+                className={`pb-2 px-3 text-sm font-bold transition border-b-2 ${
+                  mode === MODE.EMAIL_OTP
+                    ? "border-emerald-600 text-emerald-700"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Email Code Login
+              </button>
+            </div>
+
+            {/* Alert Messages */}
+            {message && (
+              <div className="mb-5 rounded-2xl bg-emerald-50 border border-emerald-200 p-3.5 text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
+                <span>{message}</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-5 rounded-2xl bg-rose-50 border border-rose-200 p-3.5 text-xs font-semibold text-rose-700 flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Form 1: Email & Password Login */}
+            {mode === MODE.LOGIN && (
+              <motion.div
+                key="login-form"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+              >
+                <div className="mb-6">
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                    Welcome Back
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                    Sign in with your registered email address and password.
+                  </p>
+                </div>
+
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                      <Mail size={18} className="text-slate-400 mr-2.5 shrink-0" />
+                      <input
+                        type="email"
+                        required
+                        autoComplete="off"
+                        placeholder="e.g. user@gmail.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Password <span className="text-red-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode(MODE.EMAIL_OTP);
+                          setOtpStep(1);
+                          clearAlerts();
+                        }}
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
+                    <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                      <Lock size={18} className="text-slate-400 mr-2.5 shrink-0" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        autoComplete="new-password"
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-slate-400 hover:text-slate-600 transition ml-2"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2 mt-2"
                   >
-                    <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-5">
-                      <Phone size={22} />
+                    {loading ? (
+                      <span>Signing in...</span>
+                    ) : (
+                      <>
+                        <span>Sign In</span>
+                        <ArrowRight size={16} />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="mt-6 text-center text-xs text-slate-500">
+                  <span>Don&apos;t have an account yet? </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode(MODE.REGISTER);
+                      clearAlerts();
+                    }}
+                    className="font-bold text-emerald-600 hover:text-emerald-700 underline underline-offset-2"
+                  >
+                    Create Account
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Form 2: Register New Account */}
+            {mode === MODE.REGISTER && (
+              <motion.div
+                key="register-form"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+              >
+                <div className="mb-6">
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                    Create New Account
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                    Register with your email to start ordering authentic medicines.
+                  </p>
+                </div>
+
+                <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                      <User size={18} className="text-slate-400 mr-2.5 shrink-0" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Karthik Pandian"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                      <Mail size={18} className="text-slate-400 mr-2.5 shrink-0" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="e.g. karthik@gmail.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Password (min. 6 characters) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                      <Lock size={18} className="text-slate-400 mr-2.5 shrink-0" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        minLength={6}
+                        placeholder="Create a strong password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-slate-400 hover:text-slate-600 transition ml-2"
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      City / Location (Optional)
+                    </label>
+                    <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                      <MapPin size={18} className="text-slate-400 mr-2.5 shrink-0" />
+                      <input
+                        type="text"
+                        placeholder="e.g. Madurai, Tamil Nadu"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2 mt-2"
+                  >
+                    {loading ? (
+                      <span>Creating Account...</span>
+                    ) : (
+                      <>
+                        <span>Create My Account</span>
+                        <ArrowRight size={16} />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="mt-6 text-center text-xs text-slate-500">
+                  <span>Already have an account? </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode(MODE.LOGIN);
+                      clearAlerts();
+                    }}
+                    className="font-bold text-emerald-600 hover:text-emerald-700 underline underline-offset-2"
+                  >
+                    Sign In here
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Form 3: Email OTP Verification */}
+            {mode === MODE.EMAIL_OTP && (
+              <motion.div
+                key="email-otp-form"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+              >
+                {otpStep === 1 ? (
+                  <div>
+                    <div className="mb-6">
+                      <div className="h-11 w-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
+                        <KeyRound size={20} />
+                      </div>
+                      <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                        Email Verification Code
+                      </h2>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                        We will send a 6-digit verification code directly to your email address.
+                      </p>
                     </div>
 
-                    <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                      Sign in with Mobile
-                    </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1 mb-6">
-                      Enter your 10-digit phone number to receive a secure login OTP.
-                    </p>
-
-                    {/* Alerts */}
-                    {error && (
-                      <div className="mb-4 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-semibold text-rose-700 flex items-center gap-2">
-                        <AlertCircle size={15} className="shrink-0" />
-                        <span>{error}</span>
-                      </div>
-                    )}
-
-                    <form onSubmit={handlePhoneSubmit} className="space-y-4">
+                    <form onSubmit={handleSendEmailOtp} className="space-y-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                          Mobile Number
+                          Your Email Address <span className="text-red-500">*</span>
                         </label>
-                        <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition">
-                          <span className="text-sm font-bold text-slate-700 pr-2.5 border-r border-slate-200 mr-2.5">
-                            +91
-                          </span>
+                        <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                          <Mail size={18} className="text-slate-400 mr-2.5 shrink-0" />
                           <input
-                            type="tel"
-                            inputMode="numeric"
-                            placeholder="Enter 10-digit mobile number"
-                            value={phone}
-                            onChange={(e) => setPhone(normalizePhone(e.target.value))}
-                            maxLength={10}
+                            type="email"
+                            required
+                            placeholder="Enter your registered email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
                           />
                         </div>
                       </div>
 
-                      <motion.button
-                        whileHover={{ scale: 1.01 }}
-                        whileTap={{ scale: 0.98 }}
+                      <button
                         type="submit"
                         disabled={loading}
                         className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2"
                       >
                         {loading ? (
-                          <span>Sending OTP...</span>
+                          <span>Sending Code...</span>
                         ) : (
                           <>
-                            <span>Continue</span>
+                            <span>Send Verification Code</span>
                             <ArrowRight size={16} />
                           </>
                         )}
-                      </motion.button>
+                      </button>
                     </form>
-                  </motion.div>
+                  </div>
                 ) : (
-                  /* Step 2: OTP Verification */
-                  <motion.div
-                    key="step-2"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-5">
-                      <Lock size={22} />
+                  <div>
+                    <div className="mb-6">
+                      <div className="h-11 w-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
+                        <Lock size={20} />
+                      </div>
+                      <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                        Enter Email Code
+                      </h2>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                        We sent a 6-digit verification code to <strong className="text-slate-800">{email}</strong>
+                      </p>
                     </div>
 
-                    <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                      Enter Verification Code
-                    </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1 mb-5">
-                      We sent a 6-digit code to <strong className="text-slate-800">+91 {cleanPhone}</strong>
-                    </p>
-
-                    {/* Alerts */}
-                    {message && (
-                      <div className="mb-4 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs font-semibold text-emerald-800 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
-                          <span>{message}</span>
-                        </div>
-                        {testOtp && (
-                          <button
-                            type="button"
-                            onClick={() => setOtp(testOtp)}
-                            className="px-2 py-1 rounded bg-emerald-200 text-emerald-900 font-bold text-[10px] hover:bg-emerald-300 transition"
-                          >
-                            Auto-Fill
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {error && (
-                      <div className="mb-4 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs font-semibold text-rose-700 flex items-center gap-2">
-                        <AlertCircle size={15} className="shrink-0" />
-                        <span>{error}</span>
-                      </div>
-                    )}
-
-                    <form onSubmit={handleOtpSubmit} className="space-y-4">
+                    <form onSubmit={handleVerifyEmailOtp} className="space-y-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                          6-Digit OTP Code
+                          6-Digit Verification Code <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
                           inputMode="numeric"
-                          placeholder="••••••"
+                          autoFocus
+                          placeholder="Enter 6-digit code"
                           value={otp}
-                          onChange={(e) => setOtp(normalizeOtp(e.target.value))}
+                          onChange={(e) =>
+                            setOtp(String(e.target.value).replace(/\D/g, "").slice(0, 6))
+                          }
                           maxLength={6}
-                          className="w-full text-center tracking-widest text-xl font-bold py-3 rounded-xl border border-slate-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition"
+                          className="w-full text-center tracking-widest text-2xl font-bold py-3.5 rounded-xl border border-slate-200 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition placeholder:text-slate-300 placeholder:text-base placeholder:tracking-normal placeholder:font-normal"
                         />
+                        <p className="text-[11px] text-slate-500 mt-1.5 text-center">
+                          Please check your email inbox or spam folder for the 6-digit code.
+                        </p>
                       </div>
 
-                      <motion.button
-                        whileHover={{ scale: 1.01 }}
-                        whileTap={{ scale: 0.98 }}
+                      <button
                         type="submit"
                         disabled={loading}
                         className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2"
                       >
-                        {loading ? "Verifying..." : "Verify & Sign In"}
-                      </motion.button>
+                        {loading ? "Verifying..." : "Verify Code & Sign In"}
+                      </button>
 
                       <div className="flex items-center justify-between text-xs pt-2">
                         <button
                           type="button"
-                          onClick={handleChangePhone}
+                          onClick={() => {
+                            setOtpStep(1);
+                            setOtp("");
+                            clearAlerts();
+                          }}
                           className="text-slate-500 hover:text-slate-800 font-semibold flex items-center gap-1 transition"
                         >
                           <RotateCcw size={13} />
-                          <span>Change Mobile</span>
+                          <span>Change Email</span>
                         </button>
 
                         <button
                           type="button"
-                          onClick={handleSendOtp}
                           disabled={timer > 0 || loading}
-                          className="text-emerald-600 hover:text-emerald-700 font-bold disabled:text-slate-400 transition"
+                          onClick={() => handleSendEmailOtp()}
+                          className="font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-40 transition"
                         >
-                          {timer > 0 ? `Resend code in ${timer}s` : "Resend OTP"}
+                          {timer > 0 ? `Resend code in ${timer}s` : "Resend Code"}
                         </button>
                       </div>
                     </form>
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
+              </motion.div>
+            )}
+          </div>
 
-              {/* Patient Note */}
-              <div className="mt-8 pt-5 border-t border-slate-100 flex items-center justify-center gap-2 text-xs text-slate-500">
-                <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
-                <span>256-Bit Encrypted Healthcare Patient Session</span>
-              </div>
-            </div>
+          <div className="pt-6 border-t border-slate-100 flex items-center justify-center gap-2 text-xs text-slate-400">
+            <ShieldCheck size={14} className="text-emerald-600" />
+            <span>256-Bit Encrypted Healthcare Patient Session</span>
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

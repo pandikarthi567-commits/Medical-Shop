@@ -43,149 +43,8 @@ import {
   tableRowVariants,
 } from "./components/pageMotion";
 
-// ── Default Reference Medicines from Image ─────────────────────────────
-const DEFAULT_SAMPLE_MEDICINES = [
-  {
-    _id: "demo-001",
-    name: "Paracetamol 500mg",
-    brand: "Crocin",
-    category: "Pain Relief",
-    batchNo: "BCH001",
-    expiryDate: "2026-09-15",
-    price: 12.5,
-    purchasePrice: 8.0,
-    stock: 120,
-    lowStockThreshold: 15,
-    prescriptionRequired: false,
-    rating: 4.8,
-  },
-  {
-    _id: "demo-002",
-    name: "Amoxicillin 250mg",
-    brand: "Alkem",
-    category: "Antibiotics",
-    batchNo: "BCH002",
-    expiryDate: "2026-09-22",
-    price: 25.0,
-    purchasePrice: 18.0,
-    stock: 28,
-    lowStockThreshold: 30,
-    prescriptionRequired: true,
-    rating: 4.5,
-  },
-  {
-    _id: "demo-003",
-    name: "Cetirizine 10mg",
-    brand: "Zyrtec",
-    category: "Allergy Care",
-    batchNo: "BCH003",
-    expiryDate: "2026-09-30",
-    price: 18.0,
-    purchasePrice: 12.0,
-    stock: 65,
-    lowStockThreshold: 20,
-    prescriptionRequired: false,
-    rating: 4.7,
-  },
-  {
-    _id: "demo-004",
-    name: "Pantoprazole 40mg",
-    brand: "Pantocid",
-    category: "Gastro Care",
-    batchNo: "BCH004",
-    expiryDate: "2026-10-05",
-    price: 22.0,
-    purchasePrice: 15.0,
-    stock: 18,
-    lowStockThreshold: 25,
-    prescriptionRequired: true,
-    rating: 4.6,
-  },
-  {
-    _id: "demo-005",
-    name: "Azithromycin 500mg",
-    brand: "Zithro",
-    category: "Antibiotics",
-    batchNo: "BCH005",
-    expiryDate: "2026-10-12",
-    price: 32.0,
-    purchasePrice: 24.0,
-    stock: 9,
-    lowStockThreshold: 15,
-    prescriptionRequired: true,
-    rating: 4.9,
-  },
-  {
-    _id: "demo-006",
-    name: "Metformin 500mg",
-    brand: "Glycomet",
-    category: "Diabetes Care",
-    batchNo: "BCH006",
-    expiryDate: "2026-12-18",
-    price: 10.0,
-    purchasePrice: 6.5,
-    stock: 210,
-    lowStockThreshold: 30,
-    prescriptionRequired: true,
-    rating: 4.4,
-  },
-  {
-    _id: "demo-007",
-    name: "Amlodipine 50mg",
-    brand: "Amlong",
-    category: "Cardiac Care",
-    batchNo: "BCH007",
-    expiryDate: "2027-01-25",
-    price: 15.0,
-    purchasePrice: 9.0,
-    stock: 145,
-    lowStockThreshold: 25,
-    prescriptionRequired: true,
-    rating: 4.6,
-  },
-  {
-    _id: "demo-008",
-    name: "Ibuprofen 400mg",
-    brand: "Ibugesic",
-    category: "Pain Relief",
-    batchNo: "BCH008",
-    expiryDate: "2027-02-10",
-    price: 14.0,
-    purchasePrice: 8.5,
-    stock: 0,
-    lowStockThreshold: 20,
-    prescriptionRequired: false,
-    rating: 4.3,
-  },
-  {
-    _id: "demo-009",
-    name: "ORS Powder",
-    brand: "Electral",
-    category: "Wellness",
-    batchNo: "BCH009",
-    expiryDate: "2027-02-28",
-    price: 20.0,
-    purchasePrice: 12.0,
-    stock: 75,
-    lowStockThreshold: 20,
-    prescriptionRequired: false,
-    rating: 4.9,
-  },
-  {
-    _id: "demo-010",
-    name: "Vitamin D3 60000 IU",
-    brand: "Uprise D3",
-    category: "Vitamins",
-    batchNo: "BCH010",
-    expiryDate: "2027-03-15",
-    price: 85.0,
-    purchasePrice: 62.0,
-    stock: 32,
-    lowStockThreshold: 35,
-    prescriptionRequired: false,
-    rating: 4.8,
-  },
-];
+// ── Empty Default Medicines (strictly live database items) ───
+const DEFAULT_SAMPLE_MEDICINES = [];
 
 // ── Helpers ────────────────────────────────────────────────────────
 const formatDate = (val) => {
@@ -614,35 +473,30 @@ const InventoryPage = () => {
       const token = getAdminToken();
 
       let liveData = [];
-      if (token) {
-        try {
-          const { data } = await API.get("/medicines/admin/all", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          liveData = data?.medicines || data?.data || (Array.isArray(data) ? data : []);
-        } catch (apiErr) {
-          console.warn("Live API fetch failed, falling back to sample reference data:", apiErr);
-        }
+      try {
+        const { data } = await API.get("/medicines/admin/all", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }).catch(() => API.get("/medicines/all")).catch(() => API.get("/medicines"));
+
+        liveData = data?.medicines || data?.data || (Array.isArray(data) ? data : []);
+      } catch (apiErr) {
+        console.warn("Live API fetch failed, falling back to sample reference data:", apiErr);
       }
 
-      // Merge: If live data exists, include live data plus reference dataset so user sees all items
       if (liveData && liveData.length > 0) {
-        // Map live items to consistent batch numbers
-        const normalizedLive = liveData.map((m, i) => ({
+        const cleanData = liveData.filter((m) => {
+          const name = (m.name || "").toLowerCase();
+          return !name.includes("(batch ") && !m.batchNo?.toLowerCase().startsWith("bch1");
+        });
+
+        const normalizedLive = cleanData.map((m, i) => ({
           ...m,
           batchNo: m.batchNo || `BCH${String(i + 1).padStart(3, "0")}`,
           purchasePrice: m.oldPrice ? Number(m.oldPrice) : Number((m.price * 0.65).toFixed(2)),
         }));
-
-        // Avoid duplicates by name
-        const liveNames = new Set(normalizedLive.map((m) => m.name.toLowerCase()));
-        const missingSamples = DEFAULT_SAMPLE_MEDICINES.filter(
-          (sm) => !liveNames.has(sm.name.toLowerCase())
-        );
-
-        setMedicines([...normalizedLive, ...missingSamples]);
+        setMedicines(normalizedLive);
       } else {
-        setMedicines(DEFAULT_SAMPLE_MEDICINES);
+        setMedicines([]);
       }
     } catch (err) {
       console.error("Fetch medicines error:", err);
@@ -651,7 +505,7 @@ const InventoryPage = () => {
         navigate("/admin/login");
         return;
       }
-      setMedicines(DEFAULT_SAMPLE_MEDICINES);
+      setMedicines([]);
     } finally {
       setLoading(false);
     }
@@ -875,16 +729,52 @@ const InventoryPage = () => {
             <span className="text-slate-700">Inventory</span>
           </div>
 
-          {/* + Add Medicine button */}
-          <motion.div {...buttonMotion}>
+          <div className="flex items-center gap-2 flex-wrap">
+            {medicines.length > 0 && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!window.confirm("Are you sure you want to delete ALL medicines from the database?")) return;
+                  try {
+                    setLoading(true);
+                    const token = getAdminToken();
+                    await API.delete("/medicines/admin/clear-all", {
+                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    });
+                    setMedicines([]);
+                    alert("All medicines deleted from database successfully.");
+                  } catch (err) {
+                    console.error(err);
+                    alert("Failed to delete medicines.");
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 px-3 py-2 text-xs sm:text-sm font-semibold text-rose-700 shadow-2xs transition cursor-pointer"
+              >
+                <Trash2 size={14} className="text-rose-600" />
+                <span>Clear All</span>
+              </button>
+            )}
+
             <Link
-              to="/admin/medicines/add"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#00a884] hover:bg-[#009272] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition"
+              to="/admin/medicines/manage"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-700 shadow-xs transition"
             >
-              <Plus size={16} strokeWidth={2.5} />
-              <span>Add Medicine</span>
+              <span>Manage List</span>
             </Link>
-          </motion.div>
+
+            {/* + Add Medicine button */}
+            <motion.div {...buttonMotion}>
+              <Link
+                to="/admin/medicines/add"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#00a884] hover:bg-[#009272] px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition"
+              >
+                <Plus size={16} strokeWidth={2.5} />
+                <span>Add Medicine</span>
+              </Link>
+            </motion.div>
+          </div>
         </div>
       </div>
 

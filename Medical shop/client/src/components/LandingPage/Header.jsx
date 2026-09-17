@@ -14,6 +14,7 @@ import {
   Bell,
   Phone,
   Package,
+  FileText,
   LogOut,
   ChevronDown,
   ShieldCheck,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { getImageUrl } from "../../utils/imageUrl";
 
 const popularLocations = [
   "Madurai 625020",
@@ -416,8 +418,22 @@ const Header = () => {
                   whileHover={{ scale: 1.02 }}
                   className="flex items-center gap-2.5 p-1.5 pr-3 rounded-xl border border-slate-200 bg-white hover:border-emerald-300 transition"
                 >
-                  <div className="h-8 w-8 rounded-lg bg-linear-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                    {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : <User size={14} />}
+                  <div className="h-8 w-8 rounded-lg bg-linear-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center font-bold text-xs shadow-xs overflow-hidden">
+                    {currentUser?.avatar ? (
+                      <img
+                        src={getImageUrl(currentUser.avatar)}
+                        alt={currentUser.name || "User Avatar"}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.style.display = "none";
+                        }}
+                      />
+                    ) : currentUser?.name ? (
+                      currentUser.name.charAt(0).toUpperCase()
+                    ) : (
+                      <User size={14} />
+                    )}
                   </div>
                   <div className="text-left max-w-28">
                     <p className="text-xs font-bold text-slate-800 truncate">
@@ -439,34 +455,61 @@ const Header = () => {
                       transition={{ duration: 0.18 }}
                       className="absolute right-0 top-full mt-2 w-64 rounded-2xl bg-white border border-slate-200 shadow-xl p-2 z-50"
                     >
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 mb-1.5">
-                        <p className="font-bold text-sm text-slate-900 truncate">
-                          {currentUser?.name || "Patient Profile"}
-                        </p>
-                        <p className="text-xs text-slate-500 truncate">
-                          {currentUser?.phone || currentUser?.email || "Signed In"}
-                        </p>
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 mb-1.5 flex items-center gap-3">
+                        <div className="h-10 w-10 shrink-0 rounded-xl bg-linear-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shadow-xs overflow-hidden">
+                          {currentUser?.avatar ? (
+                            <img
+                              src={getImageUrl(currentUser.avatar)}
+                              alt={currentUser.name || "User Avatar"}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.style.display = "none";
+                              }}
+                            />
+                          ) : currentUser?.name ? (
+                            currentUser.name.charAt(0).toUpperCase()
+                          ) : (
+                            <User size={18} />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-sm text-slate-900 truncate">
+                            {currentUser?.name || "Patient Profile"}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {currentUser?.phone || currentUser?.email || "Signed In"}
+                          </p>
+                        </div>
                       </div>
 
                       <button
                         onClick={() => handleProtectedNavigation("/profile")}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition cursor-pointer"
                       >
                         <User size={15} />
                         <span>My Account Profile</span>
                       </button>
 
                       <button
-                        onClick={() => handleProtectedNavigation("/track-order")}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition"
+                        onClick={() => handleProtectedNavigation("/orders")}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition cursor-pointer"
                       >
                         <Package size={15} />
-                        <span>My Orders & Prescriptions</span>
+                        <span>My Orders</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleProtectedNavigation("/prescriptions")}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition cursor-pointer"
+                      >
+                        <FileText size={15} />
+                        <span>My Prescriptions</span>
                       </button>
 
                       <button
                         onClick={() => handleProtectedNavigation("/wishlist")}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition cursor-pointer"
                       >
                         <Heart size={15} />
                         <span>Saved Medicines</span>

@@ -24,7 +24,8 @@ import NotificationsPage from "./components/NotificationsPage";
 import WishlistPage from "./components/WishlistPage";
 import CheckoutPage from "./components/CheckoutPage"; 
 import PaymentReturnPage from "./components/PaymentReturnPage";
-import ProfileOrdersPage from "./components/ProfileOrdersPage";
+import MyOrdersPage from "./components/MyOrdersPage";
+import MyPrescriptionsPage from "./components/MyPrescriptionsPage";
 import ProfileOrderDetailsPage from "./components/ProfileOrderDetailsPage";
 
 const ProtectedRoute = () => {
@@ -45,17 +46,20 @@ function App() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/offers" element={<OffersPage />} />
 
+          {/* Protected Routes - Accessible only when logged in */}
           <Route element={<ProtectedRoute />}>
             <Route path="/profile" element={<Profile />} />
             <Route path="/cart" element={<CartPage />} />
-            <Route path="/prescription" element={<Prescription />} />
+            <Route path="/orders" element={<MyOrdersPage />} />
+            <Route path="/profile/orders" element={<MyOrdersPage />} />
+            <Route path="/profile/orders/:id" element={<ProfileOrderDetailsPage />} />
+            <Route path="/prescriptions" element={<MyPrescriptionsPage />} />
+            <Route path="/prescription" element={<MyPrescriptionsPage />} />
             <Route path="/track-order" element={<TrackOrder />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/wishlist" element={<WishlistPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/payment-return" element={<PaymentReturnPage />} />
-            <Route path="/profile/orders" element={<ProfileOrdersPage />} />
-            <Route path="/profile/orders/:id" element={<ProfileOrderDetailsPage />} />
           </Route>
         </Route>
 

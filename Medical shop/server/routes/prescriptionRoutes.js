@@ -6,6 +6,7 @@ const { protect } = require("../middleware/authMiddleware");
 const uploadPrescriptionMiddleware = require("../middleware/uploadPrescription");
 const {
   uploadPrescription,
+  getMyPrescriptions,
   getAllPrescriptionsForAdmin,
 } = require("../controllers/prescriptionController");
 
@@ -16,6 +17,7 @@ router.post(
   uploadPrescription
 );
 
+router.get("/my-prescriptions", protect, getMyPrescriptions);
 router.get("/admin/all", protect, getAllPrescriptionsForAdmin);
 
 module.exports = router;

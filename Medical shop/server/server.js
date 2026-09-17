@@ -10,14 +10,42 @@ const autoSeedAdmin = require("./config/seedAdmin");
 const Order = require("./models/Order");
 
 dotenv.config();
-connectDB().then(() => {
+connectDB().then(async () => {
   autoSeedAdmin();
-  const autoSeedMedicines = require("./config/seedMedicines");
-  autoSeedMedicines();
-  const autoSeedCustomers = require("./config/seedCustomers");
-  autoSeedCustomers();
-  const autoSeedSuppliers = require("./config/seedSuppliers");
-  autoSeedSuppliers();
+  try {
+    const User = require("./models/User");
+    try {
+      await User.collection.dropIndex("phone_1");
+      console.log("[DB Index] Dropped legacy phone_1 index on users collection.");
+    } catch (e) {
+      // index not present or already dropped
+    }
+
+    const Medicine = require("./models/Medicine");
+    const purged = await Medicine.deleteMany({
+      $or: [
+        { name: { $regex: /\(Batch \d+\)/i } },
+        { batchNo: { $regex: /^BCH\d+/i } },
+      ],
+    });
+    if (purged.deletedCount > 0) {
+      console.log(`[DB Clean] Removed ${purged.deletedCount} old dummy batch medicines from MongoDB.`);
+    }
+
+    const Order = require("./models/Order");
+    const purgedOrders = await Order.deleteMany({
+      $or: [
+        { orderId: { $regex: /^INV-/i } },
+        { "tracking.rider.name": { $regex: /murugan/i } },
+        { customerName: { $regex: /walk-in/i } },
+      ],
+    });
+    if (purgedOrders.deletedCount > 0) {
+      console.log(`[DB Clean] Removed ${purgedOrders.deletedCount} old dummy tracking orders from MongoDB.`);
+    }
+  } catch (err) {
+    console.error("Auto clean error:", err.message);
+  }
 });
 
 const app = express();
@@ -69,6 +97,7 @@ app.use("/api/orders", require("./routes/orderRoutes"));
 app.use("/api/tracking", require("./routes/orderTrackingRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/purchases", require("./routes/purchaseRoutes"));
+app.use("/api/reviews", require("./routes/reviewRoutes"));
 
 app.get("/", (req, res) => {
   res.send("API is running...");

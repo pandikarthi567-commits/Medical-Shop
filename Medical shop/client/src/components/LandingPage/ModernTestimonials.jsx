@@ -1,14 +1,29 @@
 /* eslint-disable no-unused-vars */
-import React from "react";
-import { motion } from "framer-motion";
-import { Star, Quote, ShieldCheck, CheckCircle2, Heart } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Star,
+  Quote,
+  ShieldCheck,
+  CheckCircle2,
+  Heart,
+  Plus,
+  MessageSquarePlus,
+  X,
+  Send,
+  Sparkles,
+  MapPin,
+  User,
+  Loader2,
+} from "lucide-react";
+import API from "../../api/axios";
 
 const containerVariants = {
   hidden: {},
   visible: {
     transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.12,
+      staggerChildren: 0.08,
+      delayChildren: 0.1,
     },
   },
 };
@@ -19,60 +34,116 @@ const cardVariants = {
     opacity: 1,
     y: 0,
     transition: {
-      duration: 0.5,
+      duration: 0.4,
       ease: "easeOut",
     },
   },
 };
 
-const testimonials = [
-  {
-    name: "Dr. Vikram Sethi",
-    role: "Senior Consultant Physician, MD",
-    location: "Apollo Clinics Network",
-    content:
-      "I routinely recommend MediCare to my patients for chronic conditions. Their authentic batch verification and strict cold-chain insulin storage exceed industry standards.",
-    rating: 5,
-    verifiedBadge: "Verified Medical Doctor",
-    avatarBg: "bg-emerald-600",
-    initials: "VS",
-  },
-  {
-    name: "Priya Natarajan",
-    role: "Caregiver & Family Member",
-    location: "Madurai, Tamil Nadu",
-    content:
-      "Ordering monthly diabetic medicines and BP monitors for my elderly parents is now seamless. Genuine medicines, sealed packages, and fast doorstep delivery every time.",
+const ModernTestimonials = () => {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [hoverRating, setHoverRating] = useState(0);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    name: "",
+    role: "Verified Patient Buyer",
+    location: "Tamil Nadu, India",
+    content: "",
     rating: 5,
     verifiedBadge: "Verified Patient Buyer",
-    avatarBg: "bg-teal-600",
-    initials: "PN",
-  },
-  {
-    name: "Rajeshwar Rao",
-    role: "Senior Citizen",
-    location: "Chennai, Tamil Nadu",
-    content:
-      "I simply uploaded a picture of my doctor's prescription. A licensed pharmacist called to explain dosages and my medicines reached my home in under 45 minutes.",
-    rating: 5,
-    verifiedBadge: "Prescription User",
-    avatarBg: "bg-cyan-700",
-    initials: "RR",
-  },
-  {
-    name: "Ananya Deshmukh",
-    role: "Mother & Working Professional",
-    location: "Bangalore, Karnataka",
-    content:
-      "From baby essentials and pediatric vitamins to first-aid supplies, MediCare has become our household's trusted digital chemist. Super reliable app experience!",
-    rating: 5,
-    verifiedBadge: "Repeat Customer",
-    avatarBg: "bg-slate-800",
-    initials: "AD",
-  },
-];
+  });
 
-const ModernTestimonials = () => {
+  // Fetch reviews from MongoDB backend
+  const fetchReviews = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const { data } = await API.get("/reviews");
+      if (Array.isArray(data?.reviews)) {
+        setReviews(data.reviews);
+      } else if (Array.isArray(data)) {
+        setReviews(data);
+      } else {
+        setReviews([]);
+      }
+    } catch (err) {
+      console.error("Failed to load patient reviews:", err);
+      setError("Unable to load reviews at the moment.");
+      setReviews([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReviews();
+
+    // Auto-fill user name if logged in
+    try {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        if (parsed?.name) {
+          setFormData((prev) => ({
+            ...prev,
+            name: parsed.name,
+          }));
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [fetchReviews]);
+
+  // Handle Review Submission
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!formData.name.trim() || !formData.content.trim()) {
+      alert("Please fill in your name and review message.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const { data } = await API.post("/reviews", formData);
+
+      if (data?.review) {
+        setReviews((prev) => [data.review, ...prev]);
+      } else {
+        await fetchReviews();
+      }
+
+      // Reset form & close modal
+      setFormData({
+        name: "",
+        role: "Verified Patient Buyer",
+        location: "Tamil Nadu, India",
+        content: "",
+        rating: 5,
+        verifiedBadge: "Verified Patient Buyer",
+      });
+      setShowModal(false);
+    } catch (err) {
+      console.error("Submit review error:", err);
+      alert(err?.response?.data?.message || "Failed to submit review. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Compute live averages
+  const averageRating = reviews.length
+    ? (
+        reviews.reduce((sum, r) => sum + (Number(r.rating) || 5), 0) /
+        reviews.length
+      ).toFixed(1)
+    : "5.0";
+
   return (
     <section className="relative overflow-hidden bg-white py-16 sm:py-20 lg:py-24 border-t border-slate-200/70">
       {/* Ambient background glow */}
@@ -86,82 +157,137 @@ const ModernTestimonials = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="text-center max-w-3xl mx-auto mb-14 sm:mb-16"
+          className="text-center max-w-3xl mx-auto mb-12 sm:mb-14"
         >
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-50 px-3.5 py-1 text-xs font-bold text-emerald-800 mb-3">
             <Heart size={14} className="text-emerald-600 fill-emerald-600" />
             Patient Testimonials & Reviews
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-            Trusted by Over{" "}
+            Real Reviews From{" "}
             <span className="bg-linear-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-              50,000+ Happy Families
+              Verified Patients
             </span>
           </h2>
           <p className="mt-3 text-base sm:text-lg text-slate-600">
-            Real feedback from patients, caregivers, and medical professionals across India.
+            Real experiences and authentic ratings shared by patients and caregivers across India.
           </p>
-        </motion.div>
 
-        {/* Testimonials Grid */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.15 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-        >
-          {testimonials.map((item, index) => (
-            <motion.div
-              key={item.name}
-              variants={cardVariants}
-              whileHover={{ y: -6 }}
-              className="group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/60 p-6 sm:p-7 shadow-xs hover:shadow-xl hover:border-emerald-300 transition-all duration-300"
+          {/* Write a Review CTA Button */}
+          <div className="mt-6 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-2 rounded-full bg-linear-to-r from-emerald-600 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md hover:from-emerald-700 hover:to-teal-700 transition hover:shadow-lg active:scale-95"
             >
-              <div>
-                {/* Rating & Quote Icon */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-1">
-                    {[...Array(item.rating)].map((_, i) => (
-                      <Star
-                        key={i}
-                        size={15}
-                        className="fill-amber-400 text-amber-400"
-                      />
-                    ))}
-                  </div>
-                  <Quote className="h-6 w-6 text-emerald-600/30 group-hover:text-emerald-600/60 transition-colors" />
-                </div>
-
-                {/* Review Content */}
-                <p className="text-sm text-slate-700 leading-relaxed italic mb-6">
-                  &ldquo;{item.content}&rdquo;
-                </p>
-              </div>
-
-              {/* Author Info */}
-              <div className="pt-4 border-t border-slate-200/70">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`h-11 w-11 rounded-full ${item.avatarBg} text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0`}
-                  >
-                    {item.initials}
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-sm text-slate-900 truncate">
-                      {item.name}
-                    </h4>
-                    <p className="text-xs text-slate-500 truncate">{item.role}</p>
-                    <p className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
-                      <CheckCircle2 size={12} className="text-emerald-600" />
-                      <span>{item.verifiedBadge}</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              <MessageSquarePlus size={16} />
+              <span>Share Your Review</span>
+            </button>
+          </div>
         </motion.div>
+
+        {/* Loading State */}
+        {loading ? (
+          <div className="py-16 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-600 mb-3" />
+            <p className="text-sm font-medium text-slate-500">Loading patient reviews...</p>
+          </div>
+        ) : reviews.length === 0 ? (
+          /* Clean Empty State */
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/40 p-10 sm:p-14 text-center max-w-2xl mx-auto"
+          >
+            <div className="mx-auto mb-4 inline-flex rounded-2xl bg-emerald-100 p-4 text-emerald-700">
+              <Sparkles size={28} />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900">
+              Be The First Patient To Share Your Experience!
+            </h3>
+            <p className="mt-2 text-sm text-slate-600 max-w-md mx-auto">
+              Your valuable feedback helps other patients find genuine healthcare support and verified medicines.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-black transition"
+            >
+              <Plus size={16} />
+              Write First Review
+            </button>
+          </motion.div>
+        ) : (
+          /* Testimonials Grid */
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+          >
+            {reviews.map((item) => (
+              <motion.div
+                key={item._id || item.id || item.name}
+                variants={cardVariants}
+                whileHover={{ y: -6 }}
+                className="group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/60 p-6 sm:p-7 shadow-xs hover:shadow-xl hover:border-emerald-300 transition-all duration-300"
+              >
+                <div>
+                  {/* Rating & Quote Icon */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-1">
+                      {[...Array(Number(item.rating) || 5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          size={15}
+                          className="fill-amber-400 text-amber-400"
+                        />
+                      ))}
+                    </div>
+                    <Quote className="h-6 w-6 text-emerald-600/30 group-hover:text-emerald-600/60 transition-colors" />
+                  </div>
+
+                  {/* Review Content */}
+                  <p className="text-sm text-slate-700 leading-relaxed italic mb-6">
+                    &ldquo;{item.content}&rdquo;
+                  </p>
+                </div>
+
+                {/* Author Info */}
+                <div className="pt-4 border-t border-slate-200/70">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`h-11 w-11 rounded-full ${
+                        item.avatarBg || "bg-emerald-600"
+                      } text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0`}
+                    >
+                      {item.initials ||
+                        (item.name ? item.name.substring(0, 2).toUpperCase() : "U")}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-sm text-slate-900 truncate">
+                        {item.name}
+                      </h4>
+                      <p className="text-xs text-slate-500 truncate">
+                        {item.role || "Verified Buyer"}
+                      </p>
+                      {item.location ? (
+                        <p className="text-[11px] text-slate-400 truncate flex items-center gap-1">
+                          <MapPin size={10} />
+                          <span>{item.location}</span>
+                        </p>
+                      ) : null}
+                      <p className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 mt-0.5">
+                        <CheckCircle2 size={12} className="text-emerald-600" />
+                        <span>{item.verifiedBadge || "Verified Patient"}</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
 
         {/* Aggregate Ratings Banner */}
         <motion.div
@@ -180,24 +306,187 @@ const ModernTestimonials = () => {
                 NABH & CDSCO Pharmacy Compliant
               </h3>
               <p className="text-sm text-slate-600">
-                Licensed operations, authentic barcode verification, and tamper-proof security seals.
+                Licensed operations, authentic batch verification, and tamper-proof sealed packaging.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-6 shrink-0">
             <div className="text-center">
-              <p className="text-2xl font-black text-slate-900">4.9 / 5.0</p>
-              <p className="text-xs text-slate-500 font-medium">Over 12,000+ Reviews</p>
+              <p className="text-2xl font-black text-slate-900">
+                {averageRating} / 5.0
+              </p>
+              <p className="text-xs text-slate-500 font-medium">
+                {reviews.length} {reviews.length === 1 ? "Patient Review" : "Patient Reviews"}
+              </p>
             </div>
             <div className="h-8 w-px bg-slate-300" />
             <div className="text-center">
-              <p className="text-2xl font-black text-emerald-600">99.8%</p>
-              <p className="text-xs text-slate-500 font-medium">On-Time Accuracy</p>
+              <p className="text-2xl font-black text-emerald-600">100%</p>
+              <p className="text-xs text-slate-500 font-medium">Genuine Medicines</p>
             </div>
           </div>
         </motion.div>
       </div>
+
+      {/* Write a Review Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto"
+            >
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="absolute top-5 right-5 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="mb-6 text-left">
+                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 mb-2">
+                  <Sparkles size={13} />
+                  Write a Review
+                </div>
+                <h3 className="text-2xl font-bold text-slate-900">
+                  Share Your Experience
+                </h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  How was your experience ordering medicines and health products with us?
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmitReview} className="space-y-4 text-left">
+                {/* Rating Stars Selection */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Your Rating
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, rating: star })}
+                        onMouseEnter={() => setHoverRating(star)}
+                        onMouseLeave={() => setHoverRating(0)}
+                        className="p-1 transition-transform hover:scale-110"
+                      >
+                        <Star
+                          size={28}
+                          className={`${
+                            (hoverRating || formData.rating) >= star
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-slate-300"
+                          } transition-colors`}
+                        />
+                      </button>
+                    ))}
+                    <span className="ml-2 text-sm font-bold text-slate-700">
+                      {formData.rating} out of 5 Stars
+                    </span>
+                  </div>
+                </div>
+
+                {/* Name */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Your Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    placeholder="e.g. Karthik Pandian"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
+                  />
+                </div>
+
+                {/* Role / Tag */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                      Your Role / Tag
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.role}
+                      onChange={(e) =>
+                        setFormData({ ...formData, role: e.target.value })
+                      }
+                      placeholder="e.g. Patient / Caregiver"
+                      className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                      City / Location
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.location}
+                      onChange={(e) =>
+                        setFormData({ ...formData, location: e.target.value })
+                      }
+                      placeholder="e.g. Chennai, Tamil Nadu"
+                      className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
+                    />
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Review / Feedback Message <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={formData.content}
+                    onChange={(e) =>
+                      setFormData({ ...formData, content: e.target.value })
+                    }
+                    placeholder="Write about the medicine quality, delivery speed, customer service, or doctor prescription experience..."
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50 resize-none"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-emerald-700 transition disabled:opacity-50"
+                  >
+                    {submitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send size={15} />
+                    )}
+                    {submitting ? "Submitting..." : "Submit Review"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </section>
   );
 };

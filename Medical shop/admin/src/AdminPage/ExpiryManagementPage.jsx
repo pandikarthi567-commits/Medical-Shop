@@ -64,145 +64,14 @@ const TableCardIcon = ({ className = "w-5 h-5 text-emerald-600" }) => (
   </svg>
 );
 
-// 10 Baseline items matching reference image
-const BASELINE_EXPIRY_MEDICINES = [
-  {
-    _id: "exp-001",
-    name: "Paracetamol 500mg",
-    brand: "Crocin",
-    category: "Pain Relief",
-    batchNo: "BCH001",
-    expiryDate: "2026-09-15",
-    daysLeft: -3,
-    stock: 5,
-    price: 12.5,
-    status: "Expired",
-    description: "Effective for fever and mild to moderate pain.",
-  },
-  {
-    _id: "exp-002",
-    name: "Amoxicillin 250mg",
-    brand: "Alkem",
-    category: "Antibiotics",
-    batchNo: "BCH002",
-    expiryDate: "2026-09-22",
-    daysLeft: 7,
-    stock: 8,
-    price: 25.0,
-    status: "Expiring Soon",
-    description: "Broad-spectrum antibiotic for bacterial infections.",
-  },
-  {
-    _id: "exp-003",
-    name: "Cetirizine 10mg",
-    brand: "Zyrtec",
-    category: "Allergy Care",
-    batchNo: "BCH003",
-    expiryDate: "2026-09-30",
-    daysLeft: 15,
-    stock: 3,
-    price: 18.0,
-    status: "Expiring Soon",
-    description: "Relieves allergy symptoms like sneezing and runny nose.",
-  },
-  {
-    _id: "exp-004",
-    name: "Pantoprazole 40mg",
-    brand: "Pantocid",
-    category: "Gastro Care",
-    batchNo: "BCH004",
-    expiryDate: "2026-10-05",
-    daysLeft: 20,
-    stock: 6,
-    price: 22.0,
-    status: "Expiring Soon",
-    description: "Reduces stomach acid for reflux and heartburn relief.",
-  },
-  {
-    _id: "exp-005",
-    name: "Azithromycin 500mg",
-    brand: "Zithro",
-    category: "Antibiotics",
-    batchNo: "BCH005",
-    expiryDate: "2026-10-12",
-    daysLeft: 27,
-    stock: 4,
-    price: 32.0,
-    status: "Expiring Soon",
-    description: "Used to treat various respiratory and skin infections.",
-  },
-  {
-    _id: "exp-006",
-    name: "Metformin 500mg",
-    brand: "Glycomet",
-    category: "Diabetes Care",
-    batchNo: "BCH006",
-    expiryDate: "2026-12-18",
-    daysLeft: 106,
-    stock: 210,
-    price: 10.0,
-    status: "Valid",
-    description: "First-line medication for type 2 diabetes management.",
-  },
-  {
-    _id: "exp-007",
-    name: "Amlodipine 5mg",
-    brand: "Amlong",
-    category: "Cardiac Care",
-    batchNo: "BCH007",
-    expiryDate: "2027-01-25",
-    daysLeft: 132,
-    stock: 145,
-    price: 15.0,
-    status: "Valid",
-    description: "Calcium channel blocker for hypertension.",
-  },
-  {
-    _id: "exp-008",
-    name: "Ibuprofen 400mg",
-    brand: "Ibugesic",
-    category: "Pain Relief",
-    batchNo: "BCH008",
-    expiryDate: "2027-02-10",
-    daysLeft: 148,
-    stock: 75,
-    price: 14.0,
-    status: "Valid",
-    description: "NSAID for pain, inflammation, and fever reduction.",
-  },
-  {
-    _id: "exp-009",
-    name: "ORS Powder",
-    brand: "Electral",
-    category: "Wellness",
-    batchNo: "BCH009",
-    expiryDate: "2027-02-28",
-    daysLeft: 166,
-    stock: 60,
-    price: 20.0,
-    status: "Valid",
-    description: "Oral rehydration salts for fluid restoration.",
-  },
-  {
-    _id: "exp-010",
-    name: "Vitamin D3 60000 IU",
-    brand: "Uprise D3",
-    category: "Vitamins",
-    batchNo: "BCH010",
-    expiryDate: "2027-03-15",
-    daysLeft: 181,
-    stock: 32,
-    price: 85.0,
-    status: "Valid",
-    description: "High potency Vitamin D3 supplement for bone health.",
-  },
-];
+// ── Empty Default (strictly live database items) ───
+const BASELINE_EXPIRY_MEDICINES = [];
 
 const ExpiryManagementPage = () => {
   const navigate = useNavigate();
 
   // State definitions
-  const [medicines, setMedicines] = useState(BASELINE_EXPIRY_MEDICINES);
+  const [medicines, setMedicines] = useState([]);
   const [categories, setCategories] = useState([
     "All Categories",
     "Pain Relief",
@@ -225,30 +94,30 @@ const ExpiryManagementPage = () => {
     "Amlong",
     "Ibugesic",
     "Electral",
-    "Uprise D3",
+    "Calcirol",
   ]);
 
-  // Loading & Action State
+  // Loading & error
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Filter States
-  const [dateRangeText, setDateRangeText] = useState("01 Sep 2026 - 31 Dec 2026");
-  const [startDate, setStartDate] = useState("2026-09-01");
-  const [endDate, setEndDate] = useState("2026-12-31");
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("");
   const [expiryStatus, setExpiryStatus] = useState("All");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedBrand, setSelectedBrand] = useState("All Brands");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [startDate, setStartDate] = useState("2026-09-01");
+  const [endDate, setEndDate] = useState("2026-09-03");
+  const [dateRangeText, setDateRangeText] = useState("01 Sep 2026 - 31 Dec 2026");
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
 
-  // Pagination State
+  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalItems, setTotalItems] = useState(146);
-  const [serverTotalPages, setServerTotalPages] = useState(15);
+  const [totalItems, setTotalItems] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
 
   // Modals state
   const [selectedMedicine, setSelectedMedicine] = useState(null);
@@ -305,20 +174,23 @@ const ExpiryManagementPage = () => {
       });
 
       if (response.data && response.data.success) {
-        if (response.data.medicines && response.data.medicines.length > 0) {
-          setMedicines(response.data.medicines);
-          setTotalItems(response.data.total || response.data.medicines.length);
-          setServerTotalPages(response.data.totalPages || 1);
-        } else {
-          // If DB query returns empty, fall back to locally filtered baseline items
-          applyLocalFilters();
-        }
+        const rawMeds = response.data.medicines || [];
+        const cleanMeds = rawMeds.filter(
+          (m) => !m.name?.toLowerCase().includes("(batch ") && !m.batchNo?.toLowerCase().startsWith("bch1")
+        );
+        setMedicines(cleanMeds);
+        setTotalItems(cleanMeds.length);
+        setServerTotalPages(response.data.totalPages || 1);
       } else {
-        applyLocalFilters();
+        setMedicines([]);
+        setTotalItems(0);
+        setServerTotalPages(1);
       }
     } catch (err) {
-      console.warn("Backend API not reachable or empty. Using baseline database mock data.", err);
-      applyLocalFilters();
+      console.warn("Backend API fetch error:", err);
+      setMedicines([]);
+      setTotalItems(0);
+      setServerTotalPages(1);
     } finally {
       setLoading(false);
     }
@@ -354,36 +226,8 @@ const ExpiryManagementPage = () => {
     fetchExpiryData();
   }, [currentPage, itemsPerPage]);
 
-  // Local filter fallback logic
   const applyLocalFilters = () => {
-    let filtered = [...BASELINE_EXPIRY_MEDICINES];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (m) =>
-          m.name.toLowerCase().includes(q) ||
-          m.batchNo.toLowerCase().includes(q) ||
-          m.brand.toLowerCase().includes(q) ||
-          m.category.toLowerCase().includes(q)
-      );
-    }
-
-    if (expiryStatus !== "All") {
-      filtered = filtered.filter((m) => m.status.toLowerCase() === expiryStatus.toLowerCase());
-    }
-
-    if (selectedCategory !== "All Categories" && selectedCategory !== "All") {
-      filtered = filtered.filter((m) => m.category.toLowerCase() === selectedCategory.toLowerCase());
-    }
-
-    if (selectedBrand !== "All Brands" && selectedBrand !== "All") {
-      filtered = filtered.filter((m) => m.brand.toLowerCase() === selectedBrand.toLowerCase());
-    }
-
-    setTotalItems(146);
-    setServerTotalPages(Math.ceil(146 / itemsPerPage));
-    setMedicines(filtered.slice(0, itemsPerPage));
+    fetchExpiryData();
   };
 
   // Form submit handler for Search & Filter

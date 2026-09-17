@@ -626,6 +626,58 @@ const updateOrderTracking = async (req, res) => {
   }
 };
 
+const deleteOrderById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let query = {};
+    if (isValidObjectId(id)) {
+      query = { _id: id };
+    } else {
+      query = { $or: [{ _id: id }, { orderId: id }] };
+    }
+
+    const order = await Order.findOneAndDelete(query);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Order deleted successfully",
+      orderId: order.orderId,
+      _id: order._id,
+    });
+  } catch (error) {
+    console.error("Delete order error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete order",
+      error: error.message,
+    });
+  }
+};
+
+const clearAllOrders = async (req, res) => {
+  try {
+    const result = await Order.deleteMany({});
+    return res.status(200).json({
+      success: true,
+      message: `Cleared ${result.deletedCount} orders successfully`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("Clear orders error:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to clear orders",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllOrders,
   getOrderByIdForAdmin,
@@ -634,7 +686,9 @@ module.exports = {
   updateOrderTracking,
   getPaidOrders,
   getUnpaidOrders,
+  deleteOrderById,
   emitTrackingUpdate,
   pushStatusHistory,
   ensureTrackingObjects,
-};
+  clearAllOrders,
+};

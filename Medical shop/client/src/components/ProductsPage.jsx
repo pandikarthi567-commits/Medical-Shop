@@ -17,35 +17,9 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import API from "../api/axios";
+import { formatImageUrl } from "../utils/imageUrl";
 
-const fallbackProducts = [
-  {
-    _id: "1",
-    name: "Paracetamol 500mg Tablets",
-    category: "Medicine",
-    price: 45,
-    oldPrice: 60,
-    rating: 4.5,
-    reviewCount: 124,
-    image: "/images/medicine.png",
-    badge: "12% OFF",
-    inStock: true,
-    description: "Effective relief for fever and mild pain symptoms.",
-  },
-  {
-    _id: "2",
-    name: "Digital Thermometer",
-    category: "Health Devices",
-    price: 249,
-    oldPrice: 320,
-    rating: 4.3,
-    reviewCount: 87,
-    image: "/images/device.png",
-    badge: "Best Seller",
-    inStock: true,
-    description: "Fast and accurate temperature readings for home use.",
-  },
-];
+const fallbackProducts = [];
 
 const pageVariants = {
   initial: { opacity: 0, y: 32, scale: 0.985, filter: "blur(6px)" },
@@ -75,22 +49,28 @@ const ProductCard = ({
   addedCartId,
 }) => {
   const productId = product._id || product.id;
+  const imageSrc = formatImageUrl(product.image, "/images/medicine.png");
 
   return (
     <motion.div
       layout
       whileHover={{ y: -6 }}
       transition={{ duration: 0.22 }}
-      className="group overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm hover:shadow-lg"
+      className="group overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm hover:shadow-lg flex flex-col justify-between"
     >
       <div className="relative p-5 sm:p-6">
-        {product.badge && (
-          <div className="absolute left-4 top-4 z-10">
+        <div className="absolute left-4 top-4 z-10 flex flex-col gap-1">
+          {product.badge && (
             <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-[11px] font-semibold text-red-500 sm:text-xs">
               {product.badge}
             </span>
-          </div>
-        )}
+          )}
+          {product.prescriptionRequired && (
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
+              Rx Required
+            </span>
+          )}
+        </div>
 
         <button
           type="button"
@@ -107,7 +87,7 @@ const ProductCard = ({
 
         <div className="flex aspect-4/3 items-center justify-center rounded-3xl bg-linear-to-br from-sky-50 to-emerald-50 p-5 sm:p-6">
           <img
-            src={product.image || "/images/placeholder.png"}
+            src={imageSrc}
             alt={product.name || "Product image"}
             onError={(e) => {
               e.currentTarget.src = "/images/placeholder.png";
@@ -117,72 +97,83 @@ const ProductCard = ({
         </div>
       </div>
 
-      <div className="px-5 pb-5 sm:px-6 sm:pb-6">
-        <p className="mb-1 text-xs font-medium text-emerald-600 sm:text-sm">
-          {product.category || "General"}
-        </p>
+      <div className="px-5 pb-5 sm:px-6 sm:pb-6 flex-1 flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-semibold text-emerald-600 sm:text-sm">
+              {product.category || "General"}
+            </p>
+            {product.brand && (
+              <p className="text-[11px] font-medium text-slate-400">
+                {product.brand}
+              </p>
+            )}
+          </div>
 
-        <h3 className="line-clamp-2 min-h-14 text-base font-semibold text-slate-900 sm:text-lg">
-          {product.name}
-        </h3>
+          <h3 className="line-clamp-2 min-h-12 text-base font-semibold text-slate-900 sm:text-lg">
+            {product.name}
+          </h3>
 
-        <p className="mt-2 line-clamp-2 text-sm text-slate-500">
-          {product.description || "No description available for this product."}
-        </p>
+          <p className="mt-2 line-clamp-2 text-sm text-slate-500">
+            {product.description || "No description available for this product."}
+          </p>
 
-        <div className="mt-3 flex items-center gap-1">
-          <Star size={15} className="fill-yellow-400 text-yellow-400" />
-          <span className="text-sm font-medium text-slate-700">
-            {product.rating ?? 4.0}
-          </span>
-          <span className="text-xs text-slate-400">
-            ({product.reviewCount ?? 0})
-          </span>
+          <div className="mt-3 flex items-center gap-1">
+            <Star size={15} className="fill-yellow-400 text-yellow-400" />
+            <span className="text-sm font-medium text-slate-700">
+              {product.rating ?? 4.0}
+            </span>
+            <span className="text-xs text-slate-400">
+              ({product.reviewCount ?? 0})
+            </span>
+          </div>
         </div>
 
-        <div className="mt-4 flex items-end gap-2">
-          <span className="text-xl font-bold text-slate-900 sm:text-2xl">
-            ₹{product.price ?? 0}
-          </span>
-          {product.oldPrice ? (
-            <span className="text-sm text-slate-400 line-through">
-              ₹{product.oldPrice}
+        <div>
+          <div className="mt-4 flex items-end gap-2">
+            <span className="text-xl font-bold text-slate-900 sm:text-2xl">
+              ₹{product.price ?? 0}
             </span>
-          ) : null}
-        </div>
+            {product.oldPrice ? (
+              <span className="text-sm text-slate-400 line-through">
+                ₹{product.oldPrice}
+              </span>
+            ) : null}
+          </div>
 
-        <div className="mt-3">
-          {product.inStock ? (
-            <span className="inline-flex items-center text-sm font-medium text-emerald-600">
-              In Stock
-            </span>
-          ) : (
-            <span className="inline-flex items-center text-sm font-medium text-red-500">
-              Out of Stock
-            </span>
-          )}
-        </div>
+          <div className="mt-2">
+            {product.inStock ? (
+              <span className="inline-flex items-center text-xs sm:text-sm font-medium text-emerald-600">
+                In Stock {product.stock ? `(${product.stock})` : ""}
+              </span>
+            ) : (
+              <span className="inline-flex items-center text-xs sm:text-sm font-medium text-red-500">
+                Out of Stock
+              </span>
+            )}
+          </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={() => onAddToCart(product, false)}
-            className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-600 bg-emerald-50/60 px-2 sm:px-3 text-xs sm:text-sm font-bold text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-            disabled={!product.inStock || addingCartId === productId}
-          >
-            <ShoppingCart size={15} />
-            <span>{addingCartId === productId ? "Adding..." : addedCartId === productId ? "✓ Added" : "Add to Cart"}</span>
-          </button>
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => onAddToCart(product, false)}
+              className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-600 bg-emerald-50/60 px-2 sm:px-3 text-xs sm:text-sm font-bold text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              disabled={!product.inStock || addingCartId === productId}
+            >
+              <ShoppingCart size={15} />
+              <span>{addingCartId === productId ? "Adding..." : addedCartId === productId ? "✓ Added" : "Add to Cart"}</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => onAddToCart(product, true)}
-            className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-2 sm:px-3 text-xs sm:text-sm font-bold text-white shadow-sm shadow-emerald-500/20 transition disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-            disabled={!product.inStock || addingCartId === productId}
-          >
-            <Zap size={15} />
-            <span>Buy Now</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => onAddToCart(product, true)}
+              className="flex h-11 items-center justify-center gap-1.5 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 px-2 sm:px-3 text-xs sm:text-sm font-bold text-white shadow-sm shadow-emerald-500/20 transition disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              disabled={!product.inStock || addingCartId === productId}
+            >
+              <Zap size={15} />
+              <span>Buy Now</span>
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>
@@ -369,8 +360,8 @@ const ProductsPage = () => {
         }
       } catch (error) {
         if (isMounted) {
-          setPageError("Unable to load products from server. Showing demo products.");
-          setProducts(fallbackProducts);
+          setPageError("No products currently available or server offline.");
+          setProducts([]);
         }
       } finally {
         if (isMounted) {
@@ -388,6 +379,11 @@ const ProductsPage = () => {
 
   useEffect(() => {
     const fetchWishlist = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setWishlistIds([]);
+        return;
+      }
       try {
         const response = await API.get("/wishlist/my");
         const items = response?.data?.wishlist || [];
@@ -401,7 +397,7 @@ const ProductsPage = () => {
   }, []);
 
   const derivedCategories = useMemo(() => {
-    const source = products.length ? products : fallbackProducts;
+    const source = products;
     const unique = [...new Set(source.map((item) => item.category).filter(Boolean))].sort();
     return ["All", ...unique];
   }, [products]);

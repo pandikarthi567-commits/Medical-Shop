@@ -18,6 +18,8 @@ import {
   ShoppingBag,
   ListOrdered,
   CreditCard,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   MapContainer,
@@ -142,6 +144,32 @@ const isPaymentSuccessOrder = (order) => {
     successStatuses.includes(paymentStatus) ||
     (successStatuses.includes(orderStatus) && Number(order?.totalAmount || 0) > 0)
   );
+};
+
+const isDummyOrder = (order) => {
+  const id = String(order?.orderId || order?._id || "").toUpperCase().trim();
+  const customer = String(
+    order?.customerName || order?.user?.name || ""
+  ).toLowerCase().trim();
+  const rider = String(order?.tracking?.rider?.name || "").toLowerCase().trim();
+
+  if (
+    id.includes("INV-000123") ||
+    id.startsWith("DUMMY-") ||
+    id.startsWith("DEMO-") ||
+    id.startsWith("MOCK-")
+  ) {
+    return true;
+  }
+  if (
+    customer === "walk-in customer" ||
+    customer.includes("demo customer") ||
+    customer.includes("test customer")
+  ) {
+    return true;
+  }
+  if (rider.includes("murugan express")) return true;
+  return false;
 };
 
 const normalizeOrder = (order) => {
@@ -354,6 +382,10 @@ const AdminLiveTracking = () => {
   const [activeTab, setActiveTab] = useState(ORDER_TABS.ALL);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState(null);
   const [error, setError] = useState("");
 
   const fetchTrackingOrders = useCallback(async (isRefresh = false) => {
@@ -384,7 +416,7 @@ const AdminLiveTracking = () => {
 
       const fetchedOrders = rawOrders
         .map(normalizeOrder)
-        .filter((order) => isPaymentSuccessOrder(order));
+        .filter((order) => !isDummyOrder(order) && isPaymentSuccessOrder(order));
 
       setOrders(fetchedOrders);
 
@@ -429,6 +461,43 @@ const AdminLiveTracking = () => {
     }
   }, []);
 
+  const handleClearAllOrders = async () => {
+    try {
+      setClearing(true);
+      await API.delete("/admin/orders/clear-all");
+      setOrders([]);
+      setSelectedOrderId("");
+      setShowClearConfirm(false);
+    } catch (err) {
+      console.error("Failed to clear orders:", err);
+      alert(err?.response?.data?.message || "Failed to clear all orders");
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (!orderId) return;
+    try {
+      setDeletingId(orderId);
+      await API.delete(`/admin/orders/${orderId}`);
+      setOrders((prev) => prev.filter((o) => getOrderIdentity(o) !== orderId));
+      setSelectedOrderId((prev) => {
+        if (prev === orderId) {
+          const remaining = orders.filter((o) => getOrderIdentity(o) !== orderId);
+          return getOrderIdentity(remaining[0]) || "";
+        }
+        return prev;
+      });
+      setOrderToDelete(null);
+    } catch (err) {
+      console.error("Failed to delete order:", err);
+      alert(err?.response?.data?.message || "Failed to delete order");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   useEffect(() => {
     mountedRef.current = true;
     fetchTrackingOrders();
@@ -455,7 +524,7 @@ const AdminLiveTracking = () => {
     const handleTrackingUpdate = (payload) => {
       const incoming = normalizeOrder(payload);
 
-      if (!isPaymentSuccessOrder(incoming)) return;
+      if (isDummyOrder(incoming) || !isPaymentSuccessOrder(incoming)) return;
 
       setOrders((prev) => {
         const incomingId = getOrderIdentity(incoming);
@@ -655,15 +724,27 @@ const AdminLiveTracking = () => {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => fetchTrackingOrders(true)}
-              disabled={refreshing}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-            >
-              <RefreshCcw size={16} className={refreshing ? "animate-spin" : ""} />
-              {refreshing ? "Refreshing..." : "Refresh Orders"}
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => fetchTrackingOrders(true)}
+                disabled={refreshing}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                <RefreshCcw size={16} className={refreshing ? "animate-spin" : ""} />
+                {refreshing ? "Refreshing..." : "Refresh Orders"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(true)}
+                disabled={clearing || orders.length === 0}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50/80 px-4 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 size={16} />
+                {clearing ? "Clearing..." : "Clear All Orders"}
+              </button>
+            </div>
           </div>
         </motion.div>
 
@@ -703,438 +784,598 @@ const AdminLiveTracking = () => {
           />
         </motion.div>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-          <motion.div
-            variants={fadeUpItem}
-            initial="initial"
-            animate="animate"
-            className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm"
-          >
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <TabButton
-                label="All"
-                count={orderCounts.all}
-                active={activeTab === ORDER_TABS.ALL}
-                onClick={() => setActiveTab(ORDER_TABS.ALL)}
-              />
-              <TabButton
-                label="Delivery"
-                count={orderCounts.delivery}
-                active={activeTab === ORDER_TABS.DELIVERY}
-                onClick={() => setActiveTab(ORDER_TABS.DELIVERY)}
-              />
-              <TabButton
-                label="Non-Delivery"
-                count={orderCounts.nonDelivery}
-                active={activeTab === ORDER_TABS.NON_DELIVERY}
-                onClick={() => setActiveTab(ORDER_TABS.NON_DELIVERY)}
-              />
+        {orders.length === 0 ? (
+          <div className="rounded-[28px] border border-slate-100 bg-white p-12 text-center shadow-sm">
+            <div className="mx-auto mb-4 inline-flex rounded-3xl bg-cyan-50 p-6 text-cyan-600">
+              <Truck size={36} />
             </div>
-
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">
-                  Orders List
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Search and choose a payment-success order
-                </p>
-              </div>
-
-              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                {filteredOrders.length}
-              </div>
-            </div>
-
-            <div className="relative mb-4">
-              <Search
-                size={18}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by order ID, customer, rider, phone..."
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-50"
-              />
-            </div>
-
-            {filteredOrders.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                {searchTerm
-                  ? "No successful payment orders match your search."
-                  : "No payment-success orders found in this tab."}
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-[760px] overflow-y-auto pr-1">
-                {filteredOrders.map((order, index) => {
-                  const orderKey = getOrderIdentity(order) || `order-${index}`;
-                  const active = selectedOrderId === getOrderIdentity(order);
-                  const hasLocation =
-                    order?.isDelivery &&
-                    isValidCoordinate(
-                      order?.tracking?.liveLocation?.lat,
-                      order?.tracking?.liveLocation?.lng
-                    );
-
-                  return (
-                    <motion.button
-                      key={orderKey}
-                      variants={fadeUpItem}
-                      initial="initial"
-                      animate="animate"
-                      transition={{ delay: index * 0.03 }}
-                      type="button"
-                      onClick={() => setSelectedOrderId(getOrderIdentity(order))}
-                      className={`w-full rounded-2xl border p-4 text-left transition ${
-                        active
-                          ? "border-cyan-200 bg-cyan-50/70 shadow-sm"
-                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-slate-900">
-                            {order?.orderId || "N/A"}
-                          </p>
-                          <p className="mt-1 truncate text-sm text-slate-600">
-                            {order?.customerName || "N/A"}
-                          </p>
-                        </div>
-
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusBadge(
-                            order?.deliveryStatus || order?.orderStatus
-                          )}`}
-                        >
-                          {order?.deliveryStatus || order?.orderStatus || "N/A"}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-500 sm:grid-cols-2">
-                        <p>Total: {formatCurrency(order?.totalAmount)}</p>
-                        <p>Type: {getDeliveryTypeLabel(order)}</p>
-                        <p className="truncate">
-                          Payment: {order?.paymentStatus || "N/A"}
-                        </p>
-                        <p>{hasLocation ? "GPS Active" : "No GPS"}</p>
-                        <p className="truncate">
-                          Rider: {order?.tracking?.rider?.name || "Not assigned"}
-                        </p>
-                        <p className="truncate">
-                          Customer: {order?.customerPhone || "N/A"}
-                        </p>
-                      </div>
-                    </motion.button>
-                  );
-                })}
-              </div>
-            )}
-          </motion.div>
-
-          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-slate-900">
+              No Active Live Orders
+            </h2>
+            <p className="mx-auto mt-2 max-w-lg text-slate-500">
+              When users place orders on the medical shop, their order details,
+              payment confirmations, and live delivery coordinates will appear
+              here automatically.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
             <motion.div
               variants={fadeUpItem}
               initial="initial"
               animate="animate"
-              className="grid grid-cols-1 gap-6 lg:grid-cols-4"
+              className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm"
             >
-              <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
-                <div className="mb-4 inline-flex rounded-2xl bg-blue-50 p-3 text-blue-700">
-                  <UserRound size={22} />
-                </div>
-                <h3 className="text-base font-semibold text-slate-900">Driver</h3>
-                <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <UserRound size={16} className="text-slate-400" />
-                    <span>{selectedOrder?.tracking?.rider?.name || "Not assigned"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone size={16} className="text-slate-400" />
-                    <span>{selectedOrder?.tracking?.rider?.phone || "N/A"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Bike size={16} className="text-slate-400" />
-                    <span>
-                      {selectedOrder?.tracking?.rider?.vehicleType || "Vehicle"}
-                      {selectedOrder?.tracking?.rider?.vehicleNumber
-                        ? ` • ${selectedOrder.tracking.rider.vehicleNumber}`
-                        : ""}
-                    </span>
-                  </div>
-                </div>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <TabButton
+                  label="All"
+                  count={orderCounts.all}
+                  active={activeTab === ORDER_TABS.ALL}
+                  onClick={() => setActiveTab(ORDER_TABS.ALL)}
+                />
+                <TabButton
+                  label="Delivery"
+                  count={orderCounts.delivery}
+                  active={activeTab === ORDER_TABS.DELIVERY}
+                  onClick={() => setActiveTab(ORDER_TABS.DELIVERY)}
+                />
+                <TabButton
+                  label="Non-Delivery"
+                  count={orderCounts.nonDelivery}
+                  active={activeTab === ORDER_TABS.NON_DELIVERY}
+                  onClick={() => setActiveTab(ORDER_TABS.NON_DELIVERY)}
+                />
               </div>
 
-              <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
-                <div className="mb-4 inline-flex rounded-2xl bg-amber-50 p-3 text-amber-700">
-                  <Clock3 size={22} />
-                </div>
-                <h3 className="text-base font-semibold text-slate-900">Status</h3>
-                <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <p>
-                    Type:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {getDeliveryTypeLabel(selectedOrder)}
-                    </span>
-                  </p>
-                  <p>
-                    ETA:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {selectedOrder?.isDelivery
-                        ? selectedOrder?.tracking?.etaMinutes != null
-                          ? `${selectedOrder.tracking.etaMinutes} min`
-                          : "N/A"
-                        : "Not applicable"}
-                    </span>
-                  </p>
-                  <p>
-                    Order:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {selectedOrder?.orderStatus || "N/A"}
-                    </span>
-                  </p>
-                  <p>
-                    Delivery:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {selectedOrder?.deliveryStatus || "N/A"}
-                    </span>
-                  </p>
-                  <p>
-                    Payment:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {selectedOrder?.paymentStatus || "N/A"}
-                    </span>
-                  </p>
-                  <p>
-                    Last updated:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {formatDateTime(
-                        selectedOrder?.tracking?.liveLocation?.updatedAt ||
-                          selectedOrder?.updatedAt
-                      )}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
-                <div className="mb-4 inline-flex rounded-2xl bg-emerald-50 p-3 text-emerald-700">
-                  <PackageCheck size={22} />
-                </div>
-                <h3 className="text-base font-semibold text-slate-900">Order</h3>
-                <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <p>
-                    Order ID:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {selectedOrder?.orderId || "N/A"}
-                    </span>
-                  </p>
-                  <p>
-                    Customer:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {selectedOrder?.customerName || "N/A"}
-                    </span>
-                  </p>
-                  <p>
-                    Phone:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {selectedOrder?.customerPhone || "N/A"}
-                    </span>
-                  </p>
-                  <p>
-                    Total:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {formatCurrency(selectedOrder?.totalAmount)}
-                    </span>
-                  </p>
-                  <p>
-                    Admin Phone:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {selectedOrder?.adminPhone || "N/A"}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
-                <div className="mb-4 inline-flex rounded-2xl bg-cyan-50 p-3 text-cyan-700">
-                  <Eye size={22} />
-                </div>
-                <h3 className="text-base font-semibold text-slate-900">
-                  User Order View
-                </h3>
-                <div className="mt-4 space-y-3 text-sm text-slate-600">
-                  <p>Selected user's placed order can be opened from here.</p>
-                  {selectedOrder?._id ? (
-                    <Link
-                      to={`/admin/orders/${selectedOrder._id}`}
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 font-medium text-white transition hover:bg-black"
-                    >
-                      <Eye size={16} />
-                      View Order Details
-                    </Link>
-                  ) : (
-                    <div className="rounded-xl bg-slate-100 px-4 py-2 text-slate-500">
-                      No order selected
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              variants={fadeUpItem}
-              initial="initial"
-              animate="animate"
-              className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-sm"
-            >
-              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-semibold text-slate-900">
-                    Live Tracking Map
+                    Orders List
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Live GPS is available only for delivery orders with rider coordinates
+                    Search and choose a payment-success order
                   </p>
                 </div>
 
-                {selectedLocation && (
-                  <a
-                    href={`https://www.google.com/maps?q=${selectedLocation[0]},${selectedLocation[1]}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-black"
-                  >
-                    <Navigation size={16} />
-                    Open in Maps
-                  </a>
-                )}
+                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {filteredOrders.length}
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_0.75fr]">
-                <div className="h-[420px] min-h-[420px] w-full">
-                  {selectedLocation ? (
-                    <MapContainer
-                      center={mapCenter}
-                      zoom={15}
-                      scrollWheelZoom
-                      style={{ width: "100%", height: "100%" }}
-                    >
-                      <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      />
-                      <RecenterMap center={mapCenter} />
-                      <Marker position={selectedLocation}>
-                        <Popup>
-                          <div className="text-sm">
-                            <p className="font-semibold">
-                              {selectedOrder?.tracking?.rider?.name || "Rider"}
+              <div className="relative mb-4">
+                <Search
+                  size={18}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by order ID, customer, rider, phone..."
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-50"
+                />
+              </div>
+
+              {filteredOrders.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+                  {searchTerm
+                    ? "No successful payment orders match your search."
+                    : "No payment-success orders found in this tab."}
+                </div>
+              ) : (
+                <div className="max-h-[760px] space-y-3 overflow-y-auto pr-1">
+                  {filteredOrders.map((order, index) => {
+                    const orderKey = getOrderIdentity(order) || `order-${index}`;
+                    const active = selectedOrderId === getOrderIdentity(order);
+                    const hasLocation =
+                      order?.isDelivery &&
+                      isValidCoordinate(
+                        order?.tracking?.liveLocation?.lat,
+                        order?.tracking?.liveLocation?.lng
+                      );
+
+                    return (
+                      <div
+                        key={orderKey}
+                        className={`group relative w-full rounded-2xl border p-4 text-left transition ${
+                          active
+                            ? "border-cyan-200 bg-cyan-50/70 shadow-sm"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedOrderId(getOrderIdentity(order))
+                          }
+                          className="w-full text-left"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-slate-900">
+                                {order?.orderId || "N/A"}
+                              </p>
+                              <p className="mt-1 truncate text-sm text-slate-600">
+                                {order?.customerName || "N/A"}
+                              </p>
+                            </div>
+
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusBadge(
+                                order?.deliveryStatus || order?.orderStatus
+                              )}`}
+                            >
+                              {order?.deliveryStatus ||
+                                order?.orderStatus ||
+                                "N/A"}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-500 sm:grid-cols-2">
+                            <p>Total: {formatCurrency(order?.totalAmount)}</p>
+                            <p>Type: {getDeliveryTypeLabel(order)}</p>
+                            <p className="truncate">
+                              Payment: {order?.paymentStatus || "N/A"}
                             </p>
-                            <p>Order: {selectedOrder?.orderId || "N/A"}</p>
-                            <p>
-                              Updated:{" "}
-                              {formatDateTime(
-                                selectedOrder?.tracking?.liveLocation?.updatedAt
-                              )}
+                            <p>{hasLocation ? "GPS Active" : "No GPS"}</p>
+                            <p className="truncate">
+                              Rider:{" "}
+                              {order?.tracking?.rider?.name || "Not assigned"}
+                            </p>
+                            <p className="truncate">
+                              Customer: {order?.customerPhone || "N/A"}
                             </p>
                           </div>
-                        </Popup>
-                      </Marker>
-                    </MapContainer>
-                  ) : (
-                    <div className="flex h-full items-center justify-center bg-slate-50 p-8 text-center">
-                      <div>
-                        <div className="mx-auto mb-4 inline-flex rounded-2xl bg-slate-100 p-4 text-slate-500">
-                          <MapPinned size={26} />
-                        </div>
-                        <h3 className="text-lg font-semibold text-slate-800">
-                          {selectedOrder?.isDelivery
-                            ? "Live location not available"
-                            : "Tracking not available for non-delivery order"}
-                        </h3>
-                        <p className="mt-2 text-sm text-slate-500">
-                          {selectedOrder?.isDelivery
-                            ? "This delivery order does not have valid latitude and longitude yet."
-                            : "Only delivery orders with rider GPS data can be shown on the live map."}
-                        </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOrderToDelete(order);
+                          }}
+                          className="absolute bottom-3 right-3 rounded-lg p-1.5 text-slate-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                          title="Delete this order"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+
+            <div className="space-y-6">
+              <motion.div
+                variants={fadeUpItem}
+                initial="initial"
+                animate="animate"
+                className="grid grid-cols-1 gap-6 lg:grid-cols-4"
+              >
+                <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="mb-4 inline-flex rounded-2xl bg-blue-50 p-3 text-blue-700">
+                    <UserRound size={22} />
+                  </div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Driver
+                  </h3>
+                  <div className="mt-4 space-y-3 text-sm text-slate-600">
+                    <div className="flex items-center gap-2">
+                      <UserRound size={16} className="text-slate-400" />
+                      <span>
+                        {selectedOrder?.tracking?.rider?.name || "Not assigned"}
+                      </span>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} className="text-slate-400" />
+                      <span>
+                        {selectedOrder?.tracking?.rider?.phone || "N/A"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Bike size={16} className="text-slate-400" />
+                      <span>
+                        {selectedOrder?.tracking?.rider?.vehicleType ||
+                          "Vehicle"}
+                        {selectedOrder?.tracking?.rider?.vehicleNumber
+                          ? ` • ${selectedOrder.tracking.rider.vehicleNumber}`
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="mb-4 inline-flex rounded-2xl bg-amber-50 p-3 text-amber-700">
+                    <Clock3 size={22} />
+                  </div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Status
+                  </h3>
+                  <div className="mt-4 space-y-3 text-sm text-slate-600">
+                    <p>
+                      Type:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {getDeliveryTypeLabel(selectedOrder)}
+                      </span>
+                    </p>
+                    <p>
+                      ETA:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {selectedOrder?.isDelivery
+                          ? selectedOrder?.tracking?.etaMinutes != null
+                            ? `${selectedOrder.tracking.etaMinutes} min`
+                            : "N/A"
+                          : "Not applicable"}
+                      </span>
+                    </p>
+                    <p>
+                      Order:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {selectedOrder?.orderStatus || "N/A"}
+                      </span>
+                    </p>
+                    <p>
+                      Delivery:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {selectedOrder?.deliveryStatus || "N/A"}
+                      </span>
+                    </p>
+                    <p>
+                      Payment:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {selectedOrder?.paymentStatus || "N/A"}
+                      </span>
+                    </p>
+                    <p>
+                      Last updated:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {formatDateTime(
+                          selectedOrder?.tracking?.liveLocation?.updatedAt ||
+                            selectedOrder?.updatedAt
+                        )}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="mb-4 inline-flex rounded-2xl bg-emerald-50 p-3 text-emerald-700">
+                    <PackageCheck size={22} />
+                  </div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Order
+                  </h3>
+                  <div className="mt-4 space-y-3 text-sm text-slate-600">
+                    <p>
+                      Order ID:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {selectedOrder?.orderId || "N/A"}
+                      </span>
+                    </p>
+                    <p>
+                      Customer:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {selectedOrder?.customerName || "N/A"}
+                      </span>
+                    </p>
+                    <p>
+                      Phone:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {selectedOrder?.customerPhone || "N/A"}
+                      </span>
+                    </p>
+                    <p>
+                      Total:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {formatCurrency(selectedOrder?.totalAmount)}
+                      </span>
+                    </p>
+                    <p>
+                      Admin Phone:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {selectedOrder?.adminPhone || "N/A"}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="mb-4 inline-flex rounded-2xl bg-cyan-50 p-3 text-cyan-700">
+                    <Eye size={22} />
+                  </div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    User Order View
+                  </h3>
+                  <div className="mt-4 space-y-3 text-sm text-slate-600">
+                    <p>Selected user's placed order details and actions.</p>
+                    {selectedOrder?._id ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          to={`/admin/orders/${selectedOrder._id}`}
+                          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-black"
+                        >
+                          <Eye size={14} />
+                          View Details
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => setOrderToDelete(selectedOrder)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                        >
+                          <Trash2 size={14} />
+                          Delete Order
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl bg-slate-100 px-4 py-2 text-slate-500 text-xs">
+                        No order selected
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div
+                variants={fadeUpItem}
+                initial="initial"
+                animate="animate"
+                className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-sm"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      Live Tracking Map
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Live GPS is available only for delivery orders with rider
+                      coordinates
+                    </p>
+                  </div>
+
+                  {selectedLocation && (
+                    <a
+                      href={`https://www.google.com/maps?q=${selectedLocation[0]},${selectedLocation[1]}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-black"
+                    >
+                      <Navigation size={16} />
+                      Open in Maps
+                    </a>
                   )}
                 </div>
 
-                <div className="border-l border-slate-100 p-6">
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    GPS Details
-                  </h3>
-
-                  <div className="mt-5 space-y-4 text-sm text-slate-600">
-                    <div className="flex items-start gap-3">
-                      <MapPin size={18} className="mt-0.5 text-cyan-600" />
-                      <div>
-                        <p className="font-medium text-slate-800">Latitude</p>
-                        <p>{selectedOrder?.tracking?.liveLocation?.lat ?? "N/A"}</p>
+                <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_0.75fr]">
+                  <div className="h-[420px] min-h-[420px] w-full">
+                    {selectedLocation ? (
+                      <MapContainer
+                        center={mapCenter}
+                        zoom={15}
+                        scrollWheelZoom
+                        style={{ width: "100%", height: "100%" }}
+                      >
+                        <TileLayer
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+                        <RecenterMap center={mapCenter} />
+                        <Marker position={selectedLocation}>
+                          <Popup>
+                            <div className="text-sm">
+                              <p className="font-semibold">
+                                {selectedOrder?.tracking?.rider?.name ||
+                                  "Rider"}
+                              </p>
+                              <p>Order: {selectedOrder?.orderId || "N/A"}</p>
+                              <p>
+                                Updated:{" "}
+                                {formatDateTime(
+                                  selectedOrder?.tracking?.liveLocation
+                                    ?.updatedAt
+                                )}
+                              </p>
+                            </div>
+                          </Popup>
+                        </Marker>
+                      </MapContainer>
+                    ) : (
+                      <div className="flex h-full items-center justify-center bg-slate-50 p-8 text-center">
+                        <div>
+                          <div className="mx-auto mb-4 inline-flex rounded-2xl bg-slate-100 p-4 text-slate-500">
+                            <MapPinned size={26} />
+                          </div>
+                          <h3 className="text-lg font-semibold text-slate-800">
+                            {selectedOrder?.isDelivery
+                              ? "Live location not available"
+                              : "Tracking not available for non-delivery order"}
+                          </h3>
+                          <p className="mt-2 text-sm text-slate-500">
+                            {selectedOrder?.isDelivery
+                              ? "This delivery order does not have valid latitude and longitude yet."
+                              : "Only delivery orders with rider GPS data can be shown on the live map."}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
+                  </div>
 
-                    <div className="flex items-start gap-3">
-                      <MapPin size={18} className="mt-0.5 text-cyan-600" />
-                      <div>
-                        <p className="font-medium text-slate-800">Longitude</p>
-                        <p>{selectedOrder?.tracking?.liveLocation?.lng ?? "N/A"}</p>
+                  <div className="border-l border-slate-100 p-6">
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      GPS Details
+                    </h3>
+
+                    <div className="mt-5 space-y-4 text-sm text-slate-600">
+                      <div className="flex items-start gap-3">
+                        <MapPin size={18} className="mt-0.5 text-cyan-600" />
+                        <div>
+                          <p className="font-medium text-slate-800">
+                            Latitude
+                          </p>
+                          <p>
+                            {selectedOrder?.tracking?.liveLocation?.lat ??
+                              "N/A"}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <div>
-                      <p className="font-medium text-slate-800">Accuracy</p>
-                      <p>{selectedOrder?.tracking?.liveLocation?.accuracy ?? "N/A"}</p>
-                    </div>
+                      <div className="flex items-start gap-3">
+                        <MapPin size={18} className="mt-0.5 text-cyan-600" />
+                        <div>
+                          <p className="font-medium text-slate-800">
+                            Longitude
+                          </p>
+                          <p>
+                            {selectedOrder?.tracking?.liveLocation?.lng ??
+                              "N/A"}
+                          </p>
+                        </div>
+                      </div>
 
-                    <div>
-                      <p className="font-medium text-slate-800">Speed</p>
-                      <p>{selectedOrder?.tracking?.liveLocation?.speed ?? "N/A"}</p>
-                    </div>
-
-                    <div>
-                      <p className="font-medium text-slate-800">Heading</p>
-                      <p>{selectedOrder?.tracking?.liveLocation?.heading ?? "N/A"}</p>
-                    </div>
-
-                    <div>
-                      <p className="font-medium text-slate-800">Updated At</p>
-                      <p>
-                        {formatDateTime(
-                          selectedOrder?.tracking?.liveLocation?.updatedAt
-                        )}
-                      </p>
-                    </div>
-
-                    {selectedOrder?.deliveryAddress ? (
                       <div>
-                        <p className="font-medium text-slate-800">Delivery Address</p>
+                        <p className="font-medium text-slate-800">Accuracy</p>
                         <p>
-                          {typeof selectedOrder.deliveryAddress === "string"
-                            ? selectedOrder.deliveryAddress
-                            : [
-                                selectedOrder.deliveryAddress?.street,
-                                selectedOrder.deliveryAddress?.area,
-                                selectedOrder.deliveryAddress?.city,
-                                selectedOrder.deliveryAddress?.state,
-                                selectedOrder.deliveryAddress?.pincode,
-                              ]
-                                .filter(Boolean)
-                                .join(", ") || "N/A"}
+                          {selectedOrder?.tracking?.liveLocation?.accuracy ??
+                            "N/A"}
                         </p>
                       </div>
-                    ) : null}
+
+                      <div>
+                        <p className="font-medium text-slate-800">Speed</p>
+                        <p>
+                          {selectedOrder?.tracking?.liveLocation?.speed ??
+                            "N/A"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="font-medium text-slate-800">Heading</p>
+                        <p>
+                          {selectedOrder?.tracking?.liveLocation?.heading ??
+                            "N/A"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="font-medium text-slate-800">Updated At</p>
+                        <p>
+                          {formatDateTime(
+                            selectedOrder?.tracking?.liveLocation?.updatedAt
+                          )}
+                        </p>
+                      </div>
+
+                      {selectedOrder?.deliveryAddress ? (
+                        <div>
+                          <p className="font-medium text-slate-800">
+                            Delivery Address
+                          </p>
+                          <p>
+                            {typeof selectedOrder.deliveryAddress === "string"
+                              ? selectedOrder.deliveryAddress
+                              : [
+                                  selectedOrder.deliveryAddress?.street,
+                                  selectedOrder.deliveryAddress?.area,
+                                  selectedOrder.deliveryAddress?.city,
+                                  selectedOrder.deliveryAddress?.state,
+                                  selectedOrder.deliveryAddress?.pincode,
+                                ]
+                                  .filter(Boolean)
+                                  .join(", ") || "N/A"}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
+              </motion.div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Clear All Orders Modal */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3 text-red-600">
+              <div className="rounded-2xl bg-red-50 p-3">
+                <AlertTriangle size={24} />
               </div>
-            </motion.div>
+              <h3 className="text-xl font-bold text-slate-900">
+                Clear All Orders?
+              </h3>
+            </div>
+            <p className="text-sm text-slate-600">
+              This will permanently delete all orders from the database and
+              clear the live tracking list. This action cannot be undone.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleClearAllOrders}
+                disabled={clearing}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {clearing ? "Clearing..." : "Yes, Clear All Orders"}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Delete Single Order Modal */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3 text-red-600">
+              <div className="rounded-2xl bg-red-50 p-3">
+                <Trash2 size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">
+                Delete Order?
+              </h3>
+            </div>
+            <p className="text-sm text-slate-600">
+              Are you sure you want to remove order{" "}
+              <span className="font-bold text-slate-800">
+                {orderToDelete.orderId || orderToDelete._id}
+              </span>{" "}
+              ({orderToDelete.customerName || "Customer"})? This will remove it
+              permanently from the database.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setOrderToDelete(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  handleDeleteOrder(
+                    orderToDelete._id || orderToDelete.orderId
+                  )
+                }
+                disabled={deletingId === (orderToDelete._id || orderToDelete.orderId)}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deletingId ? "Deleting..." : "Yes, Delete Order"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageTransition>
   );
 };

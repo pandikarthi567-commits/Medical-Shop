@@ -258,6 +258,24 @@ const importCustomers = async (req, res) => {
   }
 };
 
+// DELETE /api/customers/clear/all
+const clearAllCustomers = async (req, res) => {
+  try {
+    const result = await Customer.deleteMany({});
+    return res.status(200).json({
+      success: true,
+      message: `Cleared ${result.deletedCount} customers successfully`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("Clear customers error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Server error while clearing customers",
+    });
+  }
+};
+
 module.exports = {
   getCustomers,
   getCustomerById,
@@ -266,4 +284,6 @@ module.exports = {
   deleteCustomer,
   getCustomerLocations,
   importCustomers,
+  clearAllCustomers,
 };
+

@@ -45,125 +45,14 @@ const FunnelIcon = ({ className = "w-5 h-5 text-emerald-600" }) => (
   </svg>
 );
 
-// 10 Baseline supplier items matching reference image
-const BASELINE_SUPPLIERS = [
-  {
-    _id: "sup-0001",
-    supplierId: "SUP-0001",
-    name: "Sun Pharma Distributors",
-    contactPerson: "Rajesh Kumar",
-    phone: "98456 12345",
-    email: "sunpharma@gmail.com",
-    location: "Chennai",
-    supplierType: "Distributor",
-    status: "Active",
-  },
-  {
-    _id: "sup-0002",
-    supplierId: "SUP-0002",
-    name: "Medico Care Pvt Ltd",
-    contactPerson: "Suresh B",
-    phone: "98765 43210",
-    email: "medicocare@gmail.com",
-    location: "Coimbatore",
-    supplierType: "Wholesaler",
-    status: "Active",
-  },
-  {
-    _id: "sup-0003",
-    supplierId: "SUP-0003",
-    name: "Apollo Wholesalers",
-    contactPerson: "Anil Mehta",
-    phone: "91234 56789",
-    email: "apollo.wh@gmail.com",
-    location: "Bangalore",
-    supplierType: "Wholesaler",
-    status: "Active",
-  },
-  {
-    _id: "sup-0004",
-    supplierId: "SUP-0004",
-    name: "LifeCare Pharma",
-    contactPerson: "Karthik R",
-    phone: "99887 66554",
-    email: "lifecare@gmail.com",
-    location: "Madurai",
-    supplierType: "Distributor",
-    status: "Active",
-  },
-  {
-    _id: "sup-0005",
-    supplierId: "SUP-0005",
-    name: "HealthPlus Distributors",
-    contactPerson: "Priya N",
-    phone: "98654 77890",
-    email: "healthplus@gmail.com",
-    location: "Trichy",
-    supplierType: "Distributor",
-    status: "Inactive",
-  },
-  {
-    _id: "sup-0006",
-    supplierId: "SUP-0006",
-    name: "Globe Medicals",
-    contactPerson: "Manoj Singh",
-    phone: "98412 33456",
-    email: "globe.med@gmail.com",
-    location: "Delhi",
-    supplierType: "Wholesaler",
-    status: "Active",
-  },
-  {
-    _id: "sup-0007",
-    supplierId: "SUP-0007",
-    name: "Sri Sai Pharma",
-    contactPerson: "Vignesh P",
-    phone: "96587 44556",
-    email: "srisai@gmail.com",
-    location: "Salem",
-    supplierType: "Distributor",
-    status: "Active",
-  },
-  {
-    _id: "sup-0008",
-    supplierId: "SUP-0008",
-    name: "MedZone Supply",
-    contactPerson: "Aruna Devi",
-    phone: "97865 22334",
-    email: "medzone@gmail.com",
-    location: "Hyderabad",
-    supplierType: "Wholesaler",
-    status: "Inactive",
-  },
-  {
-    _id: "sup-0009",
-    supplierId: "SUP-0009",
-    name: "Nova Remedies",
-    contactPerson: "Deepak R",
-    phone: "93456 77881",
-    email: "nova@gmail.com",
-    location: "Coimbatore",
-    supplierType: "Manufacturer",
-    status: "Active",
-  },
-  {
-    _id: "sup-0010",
-    supplierId: "SUP-0010",
-    name: "Wellness Pharma",
-    contactPerson: "Harish K",
-    phone: "99654 11223",
-    email: "wellness@gmail.com",
-    location: "Chennai",
-    supplierType: "Distributor",
-    status: "Active",
-  },
-];
+// Baseline supplier list
+const BASELINE_SUPPLIERS = [];
 
 const SuppliersPage = () => {
   const navigate = useNavigate();
 
   // State definitions
-  const [suppliers, setSuppliers] = useState(BASELINE_SUPPLIERS);
+  const [suppliers, setSuppliers] = useState([]);
   const [locations, setLocations] = useState([
     "All Locations",
     "Chennai",
@@ -191,8 +80,8 @@ const SuppliersPage = () => {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalItems, setTotalItems] = useState(128);
-  const [serverTotalPages, setServerTotalPages] = useState(13);
+  const [totalItems, setTotalItems] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
 
   // Modal States
   const [selectedSupplier, setSelectedSupplier] = useState(null);
@@ -237,19 +126,19 @@ const SuppliersPage = () => {
       });
 
       if (response.data && response.data.success) {
-        if (response.data.suppliers && response.data.suppliers.length > 0) {
-          setSuppliers(response.data.suppliers);
-          setTotalItems(response.data.total || 128);
-          setServerTotalPages(response.data.totalPages || 13);
-        } else {
-          applyLocalFilters();
-        }
+        setSuppliers(response.data.suppliers || []);
+        setTotalItems(response.data.total || (response.data.suppliers?.length || 0));
+        setServerTotalPages(response.data.totalPages || 1);
       } else {
-        applyLocalFilters();
+        setSuppliers([]);
+        setTotalItems(0);
+        setServerTotalPages(1);
       }
     } catch (err) {
-      console.warn("Backend API not reachable. Using fallback baseline suppliers data.", err);
-      applyLocalFilters();
+      console.warn("Backend API error fetching suppliers:", err);
+      setSuppliers([]);
+      setTotalItems(0);
+      setServerTotalPages(1);
     } finally {
       setLoading(false);
     }
@@ -277,35 +166,9 @@ const SuppliersPage = () => {
 
   // Local filter fallback logic
   const applyLocalFilters = () => {
-    let filtered = [...BASELINE_SUPPLIERS];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.contactPerson.toLowerCase().includes(q) ||
-          s.phone.toLowerCase().includes(q) ||
-          s.supplierId.toLowerCase().includes(q) ||
-          s.email.toLowerCase().includes(q)
-      );
-    }
-
-    if (supplierType !== "All Types" && supplierType !== "All") {
-      filtered = filtered.filter((s) => s.supplierType.toLowerCase() === supplierType.toLowerCase());
-    }
-
-    if (selectedLocation !== "All Locations" && selectedLocation !== "All") {
-      filtered = filtered.filter((s) => s.location.toLowerCase() === selectedLocation.toLowerCase());
-    }
-
-    if (statusFilter !== "All Status" && statusFilter !== "All") {
-      filtered = filtered.filter((s) => s.status.toLowerCase() === statusFilter.toLowerCase());
-    }
-
-    setTotalItems(128);
-    setServerTotalPages(Math.ceil(128 / itemsPerPage));
-    setSuppliers(filtered.slice(0, itemsPerPage));
+    setSuppliers([]);
+    setTotalItems(0);
+    setServerTotalPages(1);
   };
 
   // Form submit handler for Search & Filter
@@ -789,7 +652,31 @@ const SuppliersPage = () => {
           </div>
 
           {/* Import, Export, Options */}
-          <div className="flex items-center gap-2.5 self-end sm:self-auto">
+          <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
+            {suppliers.length > 0 && (
+              <motion.button
+                {...buttonMotion}
+                onClick={async () => {
+                  if (!window.confirm("Are you sure you want to delete ALL suppliers from the database?")) return;
+                  try {
+                    setActionLoading(true);
+                    await API.delete("/suppliers/clear/all");
+                    await fetchSuppliersData();
+                    triggerToast("All suppliers deleted from database.", "success");
+                  } catch (e) {
+                    triggerToast("Failed to delete suppliers.", "error");
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }}
+                type="button"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition shadow-2xs cursor-pointer"
+              >
+                <Trash2 size={14} className="text-rose-600" />
+                <span>Clear All</span>
+              </motion.button>
+            )}
+
             <motion.button
               {...buttonMotion}
               onClick={() => triggerToast("Import modal ready.")}
@@ -809,13 +696,6 @@ const SuppliersPage = () => {
               <Download size={14} className="text-slate-500" />
               <span>Export</span>
             </motion.button>
-
-            <button
-              type="button"
-              className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition shadow-2xs cursor-pointer"
-            >
-              <MoreHorizontal size={16} />
-            </button>
           </div>
         </div>
 

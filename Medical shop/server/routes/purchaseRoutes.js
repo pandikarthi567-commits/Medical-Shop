@@ -139,6 +139,17 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+// DELETE /api/purchases/clear/all - Clear all purchase records
+router.delete("/clear/all", async (req, res) => {
+  try {
+    const result = await Purchase.deleteMany({});
+    res.json({ success: true, message: `Cleared ${result.deletedCount} purchase records successfully`, deletedCount: result.deletedCount });
+  } catch (err) {
+    console.error("Clear purchases error:", err);
+    res.status(500).json({ success: false, message: "Failed to clear purchases" });
+  }
+});
+
 // DELETE /api/purchases/:id - Delete purchase
 router.delete("/:id", async (req, res) => {
   try {

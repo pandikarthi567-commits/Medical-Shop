@@ -45,135 +45,14 @@ const FunnelIcon = ({ className = "w-5 h-5 text-emerald-600" }) => (
   </svg>
 );
 
-// 10 Baseline customer items matching reference image
-const BASELINE_CUSTOMERS = [
-  {
-    _id: "cust-0001",
-    customerId: "CUST-0001",
-    name: "Ramesh Kumar",
-    phone: "98456 12345",
-    email: "ramesh.k@gmail.com",
-    customerType: "Retail",
-    location: "Chennai",
-    totalPurchases: 12450.0,
-    lastPurchase: "2026-09-03",
-    status: "Active",
-  },
-  {
-    _id: "cust-0002",
-    customerId: "CUST-0002",
-    name: "Priya Sharma",
-    phone: "98765 43210",
-    email: "priya.sharma@gmail.com",
-    customerType: "Retail",
-    location: "Chennai",
-    totalPurchases: 8760.0,
-    lastPurchase: "2026-09-02",
-    status: "Active",
-  },
-  {
-    _id: "cust-0003",
-    customerId: "CUST-0003",
-    name: "LifeCare Hospital",
-    phone: "91234 56789",
-    email: "procurement@lifecare.org",
-    customerType: "Hospital",
-    location: "Coimbatore",
-    totalPurchases: 56320.0,
-    lastPurchase: "2026-09-01",
-    status: "Active",
-  },
-  {
-    _id: "cust-0004",
-    customerId: "CUST-0004",
-    name: "Sri Balaji Clinic",
-    phone: "99887 66554",
-    email: "contact@balajiclinic.in",
-    customerType: "Clinic",
-    location: "Madurai",
-    totalPurchases: 24180.0,
-    lastPurchase: "2026-08-30",
-    status: "Active",
-  },
-  {
-    _id: "cust-0005",
-    customerId: "CUST-0005",
-    name: "Karthik Medicals",
-    phone: "98654 77890",
-    email: "orders@karthikmedicals.com",
-    customerType: "Wholesale",
-    location: "Trichy",
-    totalPurchases: 125600.0,
-    lastPurchase: "2026-08-28",
-    status: "Active",
-  },
-  {
-    _id: "cust-0006",
-    customerId: "CUST-0006",
-    name: "Anitha Devi",
-    phone: "98412 33456",
-    email: "anitha.devi@gmail.com",
-    customerType: "Retail",
-    location: "Chennai",
-    totalPurchases: 6320.0,
-    lastPurchase: "2026-08-25",
-    status: "Active",
-  },
-  {
-    _id: "cust-0007",
-    customerId: "CUST-0007",
-    name: "City Care Hospital",
-    phone: "96587 44556",
-    email: "supply@citycarehospitals.com",
-    customerType: "Hospital",
-    location: "Salem",
-    totalPurchases: 78450.0,
-    lastPurchase: "2026-08-22",
-    status: "Active",
-  },
-  {
-    _id: "cust-0008",
-    customerId: "CUST-0008",
-    name: "Arun Clinic",
-    phone: "97865 22334",
-    email: "arun.clinic@yahoo.com",
-    customerType: "Clinic",
-    location: "Erode",
-    totalPurchases: 18990.0,
-    lastPurchase: "2026-08-20",
-    status: "Inactive",
-  },
-  {
-    _id: "cust-0009",
-    customerId: "CUST-0009",
-    name: "Health Plus Pharma",
-    phone: "93456 77881",
-    email: "info@healthpluspharma.com",
-    customerType: "Wholesale",
-    location: "Coimbatore",
-    totalPurchases: 95600.0,
-    lastPurchase: "2026-08-18",
-    status: "Active",
-  },
-  {
-    _id: "cust-0010",
-    customerId: "CUST-0010",
-    name: "Divya S",
-    phone: "99654 11223",
-    email: "divya.s@gmail.com",
-    customerType: "Retail",
-    location: "Chennai",
-    totalPurchases: 4850.0,
-    lastPurchase: "2026-08-15",
-    status: "Inactive",
-  },
-];
+// Baseline customer list
+const BASELINE_CUSTOMERS = [];
 
 const CustomersPage = () => {
   const navigate = useNavigate();
 
   // State definitions
-  const [customers, setCustomers] = useState(BASELINE_CUSTOMERS);
+  const [customers, setCustomers] = useState([]);
   const [locations, setLocations] = useState([
     "All Locations",
     "Chennai",
@@ -199,8 +78,8 @@ const CustomersPage = () => {
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalItems, setTotalItems] = useState(856);
-  const [serverTotalPages, setServerTotalPages] = useState(86);
+  const [totalItems, setTotalItems] = useState(0);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
 
   // Modal States
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -265,19 +144,19 @@ const CustomersPage = () => {
       });
 
       if (response.data && response.data.success) {
-        if (response.data.customers && response.data.customers.length > 0) {
-          setCustomers(response.data.customers);
-          setTotalItems(response.data.total || 856);
-          setServerTotalPages(response.data.totalPages || 86);
-        } else {
-          applyLocalFilters();
-        }
+        setCustomers(response.data.customers || []);
+        setTotalItems(response.data.total || (response.data.customers?.length || 0));
+        setServerTotalPages(response.data.totalPages || 1);
       } else {
-        applyLocalFilters();
+        setCustomers([]);
+        setTotalItems(0);
+        setServerTotalPages(1);
       }
     } catch (err) {
-      console.warn("Backend API not reachable. Using fallback baseline customers data.", err);
-      applyLocalFilters();
+      console.warn("Backend API error fetching customers:", err);
+      setCustomers([]);
+      setTotalItems(0);
+      setServerTotalPages(1);
     } finally {
       setLoading(false);
     }
@@ -305,34 +184,9 @@ const CustomersPage = () => {
 
   // Local filter fallback logic
   const applyLocalFilters = () => {
-    let filtered = [...BASELINE_CUSTOMERS];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.phone.toLowerCase().includes(q) ||
-          c.customerId.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q)
-      );
-    }
-
-    if (customerType !== "All Types" && customerType !== "All") {
-      filtered = filtered.filter((c) => c.customerType.toLowerCase() === customerType.toLowerCase());
-    }
-
-    if (selectedLocation !== "All Locations" && selectedLocation !== "All") {
-      filtered = filtered.filter((c) => c.location.toLowerCase() === selectedLocation.toLowerCase());
-    }
-
-    if (statusFilter !== "All Status" && statusFilter !== "All") {
-      filtered = filtered.filter((c) => c.status.toLowerCase() === statusFilter.toLowerCase());
-    }
-
-    setTotalItems(856);
-    setServerTotalPages(Math.ceil(856 / itemsPerPage));
-    setCustomers(filtered.slice(0, itemsPerPage));
+    setCustomers([]);
+    setTotalItems(0);
+    setServerTotalPages(1);
   };
 
   // Form submit handler for Search & Filter
@@ -819,7 +673,31 @@ const CustomersPage = () => {
           </div>
 
           {/* Import, Export, Options */}
-          <div className="flex items-center gap-2.5 self-end sm:self-auto">
+          <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
+            {customers.length > 0 && (
+              <motion.button
+                {...buttonMotion}
+                onClick={async () => {
+                  if (!window.confirm("Are you sure you want to delete ALL customers from the database?")) return;
+                  try {
+                    setActionLoading(true);
+                    await API.delete("/customers/clear/all");
+                    await fetchCustomersData();
+                    triggerToast("All customers deleted from database.", "success");
+                  } catch (e) {
+                    triggerToast("Failed to delete customers.", "error");
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }}
+                type="button"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition shadow-2xs cursor-pointer"
+              >
+                <Trash2 size={14} className="text-rose-600" />
+                <span>Clear All</span>
+              </motion.button>
+            )}
+
             <motion.button
               {...buttonMotion}
               onClick={() => triggerToast("Import modal ready.")}
@@ -839,13 +717,6 @@ const CustomersPage = () => {
               <Download size={14} className="text-slate-500" />
               <span>Export</span>
             </motion.button>
-
-            <button
-              type="button"
-              className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition shadow-2xs cursor-pointer"
-            >
-              <MoreHorizontal size={16} />
-            </button>
           </div>
         </div>
 
