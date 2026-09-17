@@ -75,6 +75,7 @@ const PurchasePage = () => {
   // ─── Data from DB ────────────────────────────────────────────────
   const [purchases, setPurchases] = useState([]);
   const [medicines, setMedicines] = useState([]);
+  const [suppliersList, setSuppliersList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -115,9 +116,10 @@ const PurchasePage = () => {
       setLoading(true);
       setError("");
 
-      const [purchasesRes, medsRes] = await Promise.all([
+      const [purchasesRes, medsRes, supsRes] = await Promise.all([
         API.get("/purchases"),
         API.get("/medicines/all").catch(() => ({ data: [] })),
+        API.get("/suppliers?limit=100").catch(() => ({ data: { suppliers: [] } })),
       ]);
 
       const fetchedPurchases =
@@ -130,6 +132,11 @@ const PurchasePage = () => {
         medsRes.data?.data ||
         (Array.isArray(medsRes.data) ? medsRes.data : []);
       setMedicines(fetchedMeds);
+
+      const fetchedSups =
+        supsRes.data?.suppliers ||
+        (Array.isArray(supsRes.data) ? supsRes.data : []);
+      setSuppliersList(fetchedSups);
     } catch (err) {
       console.error("Fetch purchases error:", err);
       setError(
@@ -148,12 +155,13 @@ const PurchasePage = () => {
   // ─── Unique suppliers from DB ────────────────────────────────────
   const uniqueSuppliers = useMemo(() => {
     const set = new Set();
+    suppliersList.forEach((s) => s.name && set.add(s.name.trim()));
     purchases.forEach((p) => {
       const name = (p.supplierName || "").trim();
       if (name) set.add(name);
     });
     return Array.from(set);
-  }, [purchases]);
+  }, [suppliersList, purchases]);
 
   // ─── Filter Logic ────────────────────────────────────────────────
   const filteredPurchases = useMemo(() => {
@@ -317,6 +325,10 @@ const PurchasePage = () => {
           items[idx].name = med.name || "";
           items[idx].brand = med.brand || "";
           items[idx].category = med.category || "";
+          items[idx].batchNo = med.batchNo || "";
+          if (med.price && (!items[idx].unitCost || items[idx].unitCost === "")) {
+            items[idx].unitCost = med.price;
+          }
         }
       }
       return { ...prev, items };
@@ -1116,13 +1128,48 @@ const PurchasePage = () => {
             >
               {/* Supplier Details */}
               <div className="rounded-2xl border border-slate-200 p-4 space-y-4">
-                <p className="font-bold text-slate-700 text-sm">
-                  Supplier Details
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                    <Building2 size={16} className="text-emerald-600" />
+                    Supplier / Vendor Details
+                  </p>
+                  <span className="text-[11px] text-slate-400">
+                    {suppliersList.length} vendors available
+                  </span>
+                </div>
+
+                {/* Dropdown to pick existing vendor from DB */}
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Select Registered Vendor / Supplier (from DB)
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      const selectedSup = suppliersList.find((s) => s.name === e.target.value);
+                      if (selectedSup) {
+                        setNewPurchaseForm({
+                          ...newPurchaseForm,
+                          supplierName: selectedSup.name,
+                          supplierPhone: selectedSup.phone || "",
+                          supplierEmail: selectedSup.email || "",
+                        });
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50/40 text-slate-800 font-semibold focus:border-emerald-500 focus:outline-hidden"
+                  >
+                    <option value="">— Select from Vendor List or type manually below —</option>
+                    {suppliersList.map((sup) => (
+                      <option key={sup._id} value={sup.name}>
+                        {sup.name} {sup.supplierType ? `(${sup.supplierType})` : ""} - {sup.location || "Local"} ({sup.phone})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">
-                      Supplier Name <span className="text-rose-500">*</span>
+                      Supplier / Vendor Name <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"

@@ -109,6 +109,15 @@ router.post("/", async (req, res) => {
             $inc: { stock: Number(item.quantity) },
             inStock: true,
           });
+        } else if (item.name) {
+          const med = await Medicine.findOne({
+            name: { $regex: new RegExp(`^${item.name.trim()}$`, "i") },
+          });
+          if (med) {
+            med.stock = (med.stock || 0) + Number(item.quantity);
+            med.inStock = true;
+            await med.save();
+          }
         }
       }
     }

@@ -75,12 +75,20 @@ const purchaseSchema = new mongoose.Schema(
 );
 
 // Auto-generate purchaseId before saving
-purchaseSchema.pre("save", async function (next) {
+purchaseSchema.pre("save", async function () {
   if (!this.purchaseId) {
-    const count = await mongoose.model("Purchase").countDocuments();
-    this.purchaseId = `PUR-${String(count + 1).padStart(5, "0")}`;
+    let candidate = "";
+    for (let attempts = 0; attempts < 50; attempts++) {
+      const count = await mongoose.model("Purchase").countDocuments();
+      const testId = `PUR-${String(count + 1 + attempts).padStart(5, "0")}`;
+      const exists = await mongoose.model("Purchase").findOne({ purchaseId: testId });
+      if (!exists) {
+        candidate = testId;
+        break;
+      }
+    }
+    this.purchaseId = candidate || `PUR-${Date.now().toString().slice(-6)}`;
   }
-  next();
 });
 
 module.exports = mongoose.model("Purchase", purchaseSchema);

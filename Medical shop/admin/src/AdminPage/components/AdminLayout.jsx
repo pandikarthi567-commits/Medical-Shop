@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Navigation,
   Pill,
+  Bike,
 } from "lucide-react";
 import { clearAdminSession, getAdminUser } from "../../utils/auth";
 
@@ -79,6 +80,12 @@ const navItems = [
     name: "Live Tracking",
     path: "/admin/live-tracking",
     icon: Navigation,
+    hasChevron: false,
+  },
+  {
+    name: "Delivery Boys",
+    path: "/admin/delivery-boys",
+    icon: Bike,
     hasChevron: false,
   },
   {

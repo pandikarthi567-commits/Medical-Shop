@@ -55,9 +55,10 @@ const CustomersPage = () => {
   const [customers, setCustomers] = useState([]);
   const [locations, setLocations] = useState([
     "All Locations",
+    "Virudhunagar",
+    "Madurai",
     "Chennai",
     "Coimbatore",
-    "Madurai",
     "Trichy",
     "Salem",
     "Erode",
@@ -94,11 +95,15 @@ const CustomersPage = () => {
     phone: "",
     email: "",
     customerType: "Retail",
-    location: "Chennai",
+    location: "Virudhunagar",
     totalPurchases: 0,
     status: "Active",
     address: "",
     notes: "",
+    bloodGroup: "",
+    gender: "",
+    age: "",
+    emergencyContact: "",
   });
 
   // Trigger Toast Notification
@@ -215,11 +220,15 @@ const CustomersPage = () => {
       phone: "",
       email: "",
       customerType: "Retail",
-      location: "Chennai",
+      location: "Virudhunagar",
       totalPurchases: 0,
       status: "Active",
       address: "",
       notes: "",
+      bloodGroup: "",
+      gender: "",
+      age: "",
+      emergencyContact: "",
     });
     setShowAddModal(true);
   };
@@ -237,6 +246,10 @@ const CustomersPage = () => {
       status: cust.status,
       address: cust.address || "",
       notes: cust.notes || "",
+      bloodGroup: cust.bloodGroup || "",
+      gender: cust.gender || "",
+      age: cust.age || "",
+      emergencyContact: cust.emergencyContact || "",
     });
     setShowEditModal(true);
   };
@@ -772,7 +785,25 @@ const CustomersPage = () => {
 
                       {/* Customer Name */}
                       <td className="py-3.5 px-4 font-bold text-slate-900">
-                        {cust.name}
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate max-w-[180px]">{cust.name}</span>
+                            {cust.user ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Web
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                Manual
+                              </span>
+                            )}
+                          </div>
+                          {cust.email && (
+                            <span className="text-[11px] font-normal text-slate-400 truncate max-w-[180px]">
+                              {cust.email}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Phone Number */}
@@ -874,7 +905,7 @@ const CustomersPage = () => {
               <ChevronLeft size={16} />
             </button>
 
-            {[1, 2, 3, 4, 5].map((pageNum) => (
+            {Array.from({ length: Math.min(serverTotalPages, 5) }, (_, i) => i + 1).map((pageNum) => (
               <motion.button
                 key={pageNum}
                 whileHover={{ scale: 1.05 }}
@@ -890,24 +921,27 @@ const CustomersPage = () => {
               </motion.button>
             ))}
 
-            <span className="px-1 text-slate-300 font-bold">...</span>
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setCurrentPage(86)}
-              className={`w-8 h-8 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer ${
-                currentPage === 86
-                  ? "bg-[#059669] text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              86
-            </motion.button>
+            {serverTotalPages > 5 && (
+              <>
+                <span className="px-1 text-slate-300 font-bold">...</span>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setCurrentPage(serverTotalPages)}
+                  className={`w-8 h-8 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                    currentPage === serverTotalPages
+                      ? "bg-[#059669] text-white shadow-xs"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {serverTotalPages}
+                </motion.button>
+              </>
+            )}
 
             <button
               onClick={() => setCurrentPage((p) => Math.min(serverTotalPages, p + 1))}
-              disabled={currentPage === serverTotalPages}
+              disabled={currentPage >= serverTotalPages}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-800 disabled:opacity-40 disabled:hover:text-slate-400 transition cursor-pointer"
             >
               <ChevronRight size={16} />
@@ -1130,6 +1164,69 @@ const CustomersPage = () => {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Blood Group
+                    </label>
+                    <select
+                      value={formData.bloodGroup || ""}
+                      onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 text-slate-800 font-semibold bg-white"
+                    >
+                      <option value="">Select</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Gender
+                    </label>
+                    <select
+                      value={formData.gender || ""}
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 text-slate-800 font-semibold bg-white"
+                    >
+                      <option value="">Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Age
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 28"
+                      value={formData.age || ""}
+                      onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 text-slate-800 font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Address / Notes
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Delivery address or clinic notes"
+                    value={formData.address || ""}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 text-slate-800 font-semibold"
+                  />
+                </div>
+
                 <div className="pt-3 flex items-center justify-end gap-3">
                   <button
                     type="button"
@@ -1217,6 +1314,37 @@ const CustomersPage = () => {
                     <div className="mt-0.5">{renderStatusBadge(selectedCustomer.status)}</div>
                   </div>
                 </div>
+
+                {selectedCustomer.email && (
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                    <span className="text-slate-500 text-[11px] block">Email Address</span>
+                    <span className="font-bold text-slate-800">{selectedCustomer.email}</span>
+                  </div>
+                )}
+
+                {(selectedCustomer.bloodGroup || selectedCustomer.gender || selectedCustomer.age) && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                      <span className="text-slate-500 text-[10px] block">Blood Group</span>
+                      <span className="font-bold text-rose-600">{selectedCustomer.bloodGroup || "-"}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                      <span className="text-slate-500 text-[10px] block">Gender</span>
+                      <span className="font-bold text-slate-800">{selectedCustomer.gender || "-"}</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                      <span className="text-slate-500 text-[10px] block">Age</span>
+                      <span className="font-bold text-slate-800">{selectedCustomer.age || "-"}</span>
+                    </div>
+                  </div>
+                )}
+
+                {selectedCustomer.address && (
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                    <span className="text-slate-500 text-[11px] block">Address / Notes</span>
+                    <span className="font-medium text-slate-700">{selectedCustomer.address}</span>
+                  </div>
+                )}
 
                 <div className="p-3 bg-[#e6f7f2] rounded-2xl border border-emerald-100 flex items-center justify-between">
                   <span className="text-emerald-800 font-bold">Total Purchases</span>

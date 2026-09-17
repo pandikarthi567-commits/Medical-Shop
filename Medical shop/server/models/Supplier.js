@@ -61,12 +61,20 @@ const supplierSchema = new mongoose.Schema(
 );
 
 // Auto-generate supplierId before saving if missing
-supplierSchema.pre("save", async function (next) {
+supplierSchema.pre("save", async function () {
   if (!this.supplierId) {
-    const count = await mongoose.model("Supplier").countDocuments();
-    this.supplierId = `SUP-${String(count + 1).padStart(4, "0")}`;
+    let candidate = "";
+    for (let attempts = 0; attempts < 50; attempts++) {
+      const count = await mongoose.model("Supplier").countDocuments();
+      const testId = `SUP-${String(count + 1 + attempts).padStart(4, "0")}`;
+      const exists = await mongoose.model("Supplier").findOne({ supplierId: testId });
+      if (!exists) {
+        candidate = testId;
+        break;
+      }
+    }
+    this.supplierId = candidate || `SUP-${Date.now().toString().slice(-6)}`;
   }
-  next();
 });
 
 module.exports = mongoose.model("Supplier", supplierSchema);

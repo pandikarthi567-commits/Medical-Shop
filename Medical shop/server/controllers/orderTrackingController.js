@@ -1,4 +1,6 @@
+const mongoose = require("mongoose");
 const Order = require("../models/Order");
+const Rider = require("../models/Rider");
 
 const DELIVERY_TYPES = ["DELIVERY", "HOME_DELIVERY", "DOOR_DELIVERY"];
 const NON_DELIVERY_TYPES = ["PICKUP", "TAKEAWAY", "DINE_IN", "SELF_PICKUP"];
@@ -110,9 +112,42 @@ const buildTrackingPayload = (order) => {
     customerPhone:
       order.customerPhone || order?.user?.phone || order?.phone || "N/A",
     totalAmount: order.totalAmount || 0,
-    orderStatus: order.orderStatus || "N/A",
-    deliveryStatus: order.deliveryStatus || "N/A",
-    paymentStatus: order.paymentStatus || "N/A",
+    orderStatus: order.orderStatus || "CONFIRMED",
+    deliveryStatus: order.deliveryStatus || "PENDING",
+    paymentStatus:
+      order.paymentStatus === "PAID" ||
+      order.cashfreeOrderStatus === "PAID" ||
+      order.cashfreePaymentStatus === "PAID" ||
+      order.paymentVerifiedAt
+        ? "PAID"
+        : order.paymentMethod === "COD" || order.paymentMethod === "cash_on_delivery" || order.paymentMethod === "cash"
+        ? "COD"
+        : order.paymentStatus || "PENDING",
+    paymentMethod: order.paymentMethod || order.payment_method || "cashfree",
+    paymentVerifiedAt: order.paymentVerifiedAt || null,
+    transactionId:
+      order.cfTransactionId ||
+      order.transactionId ||
+      order.cashfreeReferenceId ||
+      order.cfOrderId ||
+      order.paymentSessionId ||
+      "",
+    cashfreeReferenceId:
+      order.cfTransactionId ||
+      order.cashfreeReferenceId ||
+      order.cfOrderId ||
+      "",
+    cashfreePaymentStatus:
+      order.cashfreeOrderStatus ||
+      order.cashfreePaymentStatus ||
+      order.paymentStatus ||
+      "PENDING",
+    cashfreeOrderStatus:
+      order.cashfreeOrderStatus ||
+      order.paymentStatus ||
+      "PENDING",
+    items: Array.isArray(order.items) ? order.items : (Array.isArray(order.medicines) ? order.medicines : []),
+    medicines: Array.isArray(order.items) ? order.items : (Array.isArray(order.medicines) ? order.medicines : []),
     deliveryType,
     isDelivery,
     shippingAddress: order.shippingAddress || {},
@@ -185,15 +220,32 @@ const getAdminOrdersLiveTracking = async (req, res) => {
       limit = 200,
     } = req.query;
 
-    const query = {};
+    const basePaidQuery = {
+      $or: [
+        { paymentStatus: "PAID" },
+        { paymentMethod: { $in: ["COD", "cash_on_delivery", "cash", "Cash on Delivery", "cod"] } },
+        { cashfreeOrderStatus: "PAID" },
+        { cashfreePaymentStatus: "PAID" },
+        { paymentVerifiedAt: { $ne: null } },
+      ],
+    };
+
     const normalizedType = String(type).trim().toUpperCase();
     const normalizedStatus = status ? String(status).trim().toUpperCase() : "";
 
+    let query = basePaidQuery;
     if (normalizedStatus) {
-      query.$or = [
-        { orderStatus: normalizedStatus },
-        { deliveryStatus: normalizedStatus },
-      ];
+      query = {
+        $and: [
+          basePaidQuery,
+          {
+            $or: [
+              { orderStatus: normalizedStatus },
+              { deliveryStatus: normalizedStatus },
+            ],
+          },
+        ],
+      };
     }
 
     const orders = await Order.find(query)
@@ -260,7 +312,10 @@ const getOrderTrackingByOrderId = async (req, res) => {
       });
     }
 
-    const order = await Order.findOne({ orderId }).lean();
+    const isHexId = mongoose.isValidObjectId(orderId);
+    const order = await Order.findOne({
+      $or: [{ orderId }, ...(isHexId ? [{ _id: orderId }] : [])],
+    }).lean();
 
     if (!order) {
       return res.status(404).json({
@@ -316,7 +371,10 @@ const updateOrderTrackingByAdmin = async (req, res) => {
       });
     }
 
-    const order = await Order.findOne({ orderId });
+    const isHexId = mongoose.isValidObjectId(orderId);
+    const order = await Order.findOne({
+      $or: [{ orderId }, ...(isHexId ? [{ _id: orderId }] : [])],
+    });
 
     if (!order) {
       return res.status(404).json({
@@ -431,7 +489,7 @@ const updateOrderTrackingByAdmin = async (req, res) => {
       order.deliveryStatus = "NOT_DELIVERED";
     }
 
-    await order.save();
+    await order.save({ validateBeforeSave: false });
     emitTrackingUpdate(req, order);
 
     return res.status(200).json({
@@ -451,7 +509,10 @@ const updateOrderTrackingByAdmin = async (req, res) => {
 const adminConfirmOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const order = await Order.findOne({ orderId });
+    const isHexId = mongoose.isValidObjectId(orderId);
+    const order = await Order.findOne({
+      $or: [{ orderId }, ...(isHexId ? [{ _id: orderId }] : [])],
+    });
 
     if (!order) {
       return res.status(404).json({
@@ -466,7 +527,7 @@ const adminConfirmOrder = async (req, res) => {
     if (!order.tracking.confirmedAt) order.tracking.confirmedAt = new Date();
     pushStatusHistory(order, "CONFIRMED", "ADMIN", "Order confirmed by admin");
 
-    await order.save();
+    await order.save({ validateBeforeSave: false });
     emitTrackingUpdate(req, order);
 
     return res.status(200).json({
@@ -496,33 +557,34 @@ const adminAssignRider = async (req, res) => {
       etaMinutes,
     } = req.body;
 
-    const order = await Order.findOne({ orderId });
+    const isHexId = mongoose.isValidObjectId(orderId);
+    const order = await Order.findOne({
+      $or: [{ orderId }, ...(isHexId ? [{ _id: orderId }] : [])],
+    });
 
     if (!order) {
       return res.status(404).json({
         success: false,
-        message: "Order not found",
+        message: `Order ${orderId} not found`,
       });
     }
 
     ensureTrackingDefaults(order);
 
-    if (!isDeliveryOrder(order)) {
-      order.deliveryType = "DELIVERY";
-      order.isDelivery = true;
-    }
+    order.deliveryType = "DELIVERY";
+    order.isDelivery = true;
 
     order.tracking.rider = {
-      riderId: riderId || null,
-      name: name || "",
-      phone: phone || "",
-      vehicleNumber: vehicleNumber || "",
-      vehicleType: vehicleType || "",
-      photo: photo || "",
+      riderId: riderId && mongoose.isValidObjectId(riderId) ? riderId : (riderId ? String(riderId) : null),
+      name: String(name || "").trim(),
+      phone: String(phone || "").trim(),
+      vehicleNumber: String(vehicleNumber || "").trim(),
+      vehicleType: String(vehicleType || "Motorcycle").trim(),
+      photo: String(photo || "").trim(),
     };
 
-    if (etaMinutes !== undefined) {
-      order.tracking.etaMinutes = toNumberOrNull(etaMinutes);
+    if (etaMinutes !== undefined && etaMinutes !== null) {
+      order.tracking.etaMinutes = Number(etaMinutes) || 30;
     }
 
     order.deliveryStatus = "ASSIGNED";
@@ -538,9 +600,14 @@ const adminAssignRider = async (req, res) => {
       );
     }
 
-    pushStatusHistory(order, "ASSIGNED", "ADMIN", "Rider assigned by admin");
+    pushStatusHistory(
+      order,
+      "ASSIGNED",
+      "ADMIN",
+      `Assigned to delivery boy ${name || "Rider"}`
+    );
 
-    await order.save();
+    await order.save({ validateBeforeSave: false });
     emitTrackingUpdate(req, order);
 
     return res.status(200).json({
@@ -552,7 +619,7 @@ const adminAssignRider = async (req, res) => {
     console.error("adminAssignRider error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to assign rider",
+      message: error?.message || "Failed to assign rider",
     });
   }
 };
@@ -592,7 +659,10 @@ const riderUpdateLocation = async (req, res) => {
       });
     }
 
-    const order = await Order.findOne({ orderId });
+    const isHexId = mongoose.isValidObjectId(orderId);
+    const order = await Order.findOne({
+      $or: [{ orderId }, ...(isHexId ? [{ _id: orderId }] : [])],
+    });
 
     if (!order) {
       return res.status(404).json({
@@ -648,7 +718,7 @@ const riderUpdateLocation = async (req, res) => {
       );
     }
 
-    await order.save();
+    await order.save({ validateBeforeSave: false });
     emitTrackingUpdate(req, order);
 
     return res.status(200).json({
@@ -672,7 +742,10 @@ const riderUpdateDeliveryStatus = async (req, res) => {
 
     const normalizedStatus = String(status || "").trim().toUpperCase();
 
-    const order = await Order.findOne({ orderId });
+    const isHexId = mongoose.isValidObjectId(orderId);
+    const order = await Order.findOne({
+      $or: [{ orderId }, ...(isHexId ? [{ _id: orderId }] : [])],
+    });
 
     if (!order) {
       return res.status(404).json({
@@ -706,7 +779,7 @@ const riderUpdateDeliveryStatus = async (req, res) => {
       });
     }
 
-    await order.save();
+    await order.save({ validateBeforeSave: false });
     emitTrackingUpdate(req, order);
 
     return res.status(200).json({

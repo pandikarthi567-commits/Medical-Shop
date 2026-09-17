@@ -77,10 +77,27 @@ const Header = () => {
 
     try {
       const cartItems = JSON.parse(localStorage.getItem("cart") || "[]");
-      const count = cartItems.reduce((acc, item) => acc + (item.quantity || 1), 0);
+      const count = Array.isArray(cartItems)
+        ? cartItems.reduce((acc, item) => acc + (item.quantity ?? item.qty ?? 1), 0)
+        : 0;
       setCartCount(count);
     } catch {
       setCartCount(0);
+    }
+
+    if (token) {
+      api.get("/cart/my").then((res) => {
+        const items =
+          res?.data?.cart?.items ||
+          res?.data?.items ||
+          res?.data?.cart ||
+          [];
+        if (Array.isArray(items)) {
+          const apiCount = items.reduce((acc, item) => acc + (item.quantity ?? item.qty ?? 1), 0);
+          setCartCount(apiCount);
+          localStorage.setItem("cart", JSON.stringify(items));
+        }
+      }).catch(() => {});
     }
   }, []);
 

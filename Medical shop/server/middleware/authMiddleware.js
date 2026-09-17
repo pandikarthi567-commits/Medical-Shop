@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Admin = require("../models/Admin");
 
 const protect = async (req, res, next) => {
   try {
@@ -20,9 +21,29 @@ const protect = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const id = decoded.id || decoded._id;
 
-    const user = await User.findById(decoded.id).select("-password");
+    // Check if token belongs to an Admin
+    if (decoded.type === "admin" || decoded.role === "admin") {
+      const admin = await Admin.findById(id).select("-password");
+      if (admin) {
+        req.user = admin;
+        req.admin = admin;
+        return next();
+      }
+    }
+
+    // Check User model
+    let user = await User.findById(id).select("-password");
     if (!user) {
+      // Fallback check Admin model
+      const admin = await Admin.findById(id).select("-password");
+      if (admin) {
+        req.user = admin;
+        req.admin = admin;
+        return next();
+      }
+
       return res.status(401).json({
         success: false,
         message: "User not found",

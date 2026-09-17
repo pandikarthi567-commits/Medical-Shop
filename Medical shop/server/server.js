@@ -40,11 +40,11 @@ connectDB().then(async () => {
         { customerName: { $regex: /walk-in/i } },
       ],
     });
-    if (purgedOrders.deletedCount > 0) {
-      console.log(`[DB Clean] Removed ${purgedOrders.deletedCount} old dummy tracking orders from MongoDB.`);
-    }
+    const { syncRegisteredUsersToCustomers } = require("./controllers/customerController");
+    await syncRegisteredUsersToCustomers();
+    console.log("[Customer Sync] Successfully synchronized registered users into Customers collection.");
   } catch (err) {
-    console.error("Auto clean error:", err.message);
+    console.error("Auto clean/sync error:", err.message);
   }
 });
 
@@ -92,9 +92,9 @@ app.use("/api/admin", require("./routes/adminOrderRoutes"));
 app.use("/api/categories", require("./routes/categoryRoutes"));
 app.use("/api/wishlist", require("./routes/wishlistRoutes"));
 app.use("/api/cart", require("./routes/cartRoutes"));
-app.use("/api/offers", require("./routes/offerRoute"));
 app.use("/api/orders", require("./routes/orderRoutes"));
 app.use("/api/tracking", require("./routes/orderTrackingRoutes"));
+app.use("/api/riders", require("./routes/riderRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/purchases", require("./routes/purchaseRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));

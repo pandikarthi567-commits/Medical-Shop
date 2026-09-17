@@ -28,13 +28,13 @@ const TRACKING_UPDATED_BY = ["SYSTEM", "ADMIN", "PHARMACIST", "RIDER", "CUSTOMER
 const orderItemSchema = new mongoose.Schema(
   {
     productId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       ref: "Medicine",
-      required: true,
+      default: null,
     },
     name: {
       type: String,
-      required: true,
+      default: "Healthcare Item",
       trim: true,
     },
     image: {
@@ -43,17 +43,17 @@ const orderItemSchema = new mongoose.Schema(
     },
     price: {
       type: Number,
-      required: true,
+      default: 0,
       min: 0,
     },
     quantity: {
       type: Number,
-      required: true,
+      default: 1,
       min: 1,
     },
     subtotal: {
       type: Number,
-      required: true,
+      default: 0,
       min: 0,
     },
   },
@@ -62,13 +62,13 @@ const orderItemSchema = new mongoose.Schema(
 
 const shippingAddressSchema = new mongoose.Schema(
   {
-    fullName: { type: String, required: true, trim: true },
-    phone: { type: String, required: true, trim: true },
-    addressLine1: { type: String, required: true, trim: true },
+    fullName: { type: String, default: "", trim: true },
+    phone: { type: String, default: "", trim: true },
+    addressLine1: { type: String, default: "", trim: true },
     addressLine2: { type: String, default: "", trim: true },
-    city: { type: String, required: true, trim: true },
-    state: { type: String, required: true, trim: true },
-    postalCode: { type: String, required: true, trim: true },
+    city: { type: String, default: "", trim: true },
+    state: { type: String, default: "", trim: true },
+    postalCode: { type: String, default: "", trim: true },
     country: { type: String, default: "India", trim: true },
   },
   { _id: false }
@@ -78,8 +78,8 @@ const trackingEventSchema = new mongoose.Schema(
   {
     status: {
       type: String,
-      enum: ORDER_STATUSES,
       required: true,
+      trim: true,
     },
     note: {
       type: String,
@@ -88,8 +88,8 @@ const trackingEventSchema = new mongoose.Schema(
     },
     updatedBy: {
       type: String,
-      enum: TRACKING_UPDATED_BY,
       default: "SYSTEM",
+      trim: true,
     },
     timestamp: {
       type: Date,
@@ -114,8 +114,7 @@ const liveLocationSchema = new mongoose.Schema(
 const riderSchema = new mongoose.Schema(
   {
     riderId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      type: mongoose.Schema.Types.Mixed,
       default: null,
     },
     name: { type: String, default: "", trim: true },
@@ -198,14 +197,14 @@ const orderSchema = new mongoose.Schema(
       default: "",
     },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       ref: "User",
-      required: true,
+      default: null,
       index: true,
     },
     customerName: {
       type: String,
-      required: true,
+      default: "Valued Customer",
       trim: true,
     },
     customerEmail: {
@@ -216,25 +215,24 @@ const orderSchema = new mongoose.Schema(
     },
     customerPhone: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     items: {
       type: [orderItemSchema],
-      validate: {
-        validator: function (arr) {
-          return Array.isArray(arr) && arr.length > 0;
-        },
-        message: "Order must contain at least one item",
-      },
+      default: () => [],
+    },
+    medicines: {
+      type: Array,
+      default: undefined,
     },
     shippingAddress: {
       type: shippingAddressSchema,
-      required: true,
+      default: () => ({}),
     },
     subtotal: {
       type: Number,
-      required: true,
+      default: 0,
       min: 0,
     },
     shippingCharge: {
@@ -249,7 +247,7 @@ const orderSchema = new mongoose.Schema(
     },
     totalAmount: {
       type: Number,
-      required: true,
+      default: 0,
       min: 0,
     },
     paymentMethod: {
@@ -257,9 +255,24 @@ const orderSchema = new mongoose.Schema(
       default: "cashfree",
       trim: true,
     },
+    cfTransactionId: {
+      type: String,
+      default: "",
+    },
+    transactionId: {
+      type: String,
+      default: "",
+    },
+    cashfreeReferenceId: {
+      type: String,
+      default: "",
+    },
+    cashfreePaymentStatus: {
+      type: String,
+      default: "",
+    },
     paymentStatus: {
       type: String,
-      enum: ["PENDING", "PAID", "FAILED"],
       default: "PENDING",
       index: true,
     },
@@ -269,15 +282,25 @@ const orderSchema = new mongoose.Schema(
     },
     orderStatus: {
       type: String,
-      enum: ORDER_STATUSES,
       default: "PLACED",
       index: true,
     },
     deliveryStatus: {
       type: String,
-      enum: DELIVERY_STATUSES,
       default: "PENDING",
       index: true,
+    },
+    deliveryType: {
+      type: String,
+      default: "DELIVERY",
+    },
+    isDelivery: {
+      type: Boolean,
+      default: true,
+    },
+    stockDeducted: {
+      type: Boolean,
+      default: false,
     },
     cashfreeOrderStatus: {
       type: String,
@@ -298,6 +321,7 @@ const orderSchema = new mongoose.Schema(
   {
     timestamps: true,
     minimize: false,
+    strict: false,
   }
 );
 

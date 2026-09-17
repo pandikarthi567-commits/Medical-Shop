@@ -20,6 +20,7 @@ import PurchasePage from "./AdminPage/PurchasePage";
 import InventoryPage from "./AdminPage/InventoryPage";
 import AddMedicine from "./AdminPage/AddMedicine";
 import ManageMedicinesPage from "./AdminPage/ManageMedicinesPage";
+import DeliveryBoysPage from "./AdminPage/DeliveryBoysPage";
 
 function App() {
   return (
@@ -47,6 +48,8 @@ function App() {
           <Route path="/admin/orders" element={<SalesPage />} />
           <Route path="/admin/orders/live-tracking" element={<AdminLiveTracking />} />
           <Route path="/admin/live-tracking" element={<AdminLiveTracking />} />
+          <Route path="/admin/delivery-boys" element={<DeliveryBoysPage />} />
+          <Route path="/admin/riders" element={<DeliveryBoysPage />} />
           <Route path="/admin/orders/:id" element={<OrderDetailsPage />} />
 
           {/* Customers & Suppliers */}

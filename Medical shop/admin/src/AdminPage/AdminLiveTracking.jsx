@@ -20,6 +20,12 @@ import {
   CreditCard,
   Trash2,
   AlertTriangle,
+  UserPlus,
+  X,
+  Check,
+  CheckCircle2,
+  Plus,
+  ChevronRight,
 } from "lucide-react";
 import {
   MapContainer,
@@ -111,12 +117,16 @@ const isPaymentSuccessOrder = (order) => {
       order?.payment?.status ??
       order?.transaction?.status ??
       order?.checkout?.paymentStatus ??
+      order?.cashfreePaymentStatus ??
+      order?.cashfreeOrderStatus ??
       ""
   )
     .trim()
     .toUpperCase();
 
-  const orderStatus = String(order?.status ?? order?.orderStatus ?? "")
+  const paymentMethod = String(
+    order?.paymentMethod ?? order?.payment_method ?? ""
+  )
     .trim()
     .toUpperCase();
 
@@ -127,7 +137,8 @@ const isPaymentSuccessOrder = (order) => {
     order?.paid === true ||
     order?.payment?.verified === true ||
     order?.payment?.success === true ||
-    order?.transaction?.success === true;
+    order?.transaction?.success === true ||
+    Boolean(order?.paymentVerifiedAt);
 
   const successStatuses = [
     "SUCCESS",
@@ -136,14 +147,23 @@ const isPaymentSuccessOrder = (order) => {
     "CAPTURED",
     "VERIFIED",
     "PAYMENT_SUCCESS",
-    "CONFIRMED",
   ];
 
-  return (
-    paymentVerified ||
-    successStatuses.includes(paymentStatus) ||
-    (successStatuses.includes(orderStatus) && Number(order?.totalAmount || 0) > 0)
-  );
+  // Include COD / Cash on Delivery orders
+  if (
+    paymentMethod === "COD" ||
+    paymentMethod === "CASH_ON_DELIVERY" ||
+    paymentMethod === "CASH"
+  ) {
+    return true;
+  }
+
+  // Reject unpaid pending orders
+  if (paymentStatus === "PENDING" && !paymentVerified) {
+    return false;
+  }
+
+  return paymentVerified || successStatuses.includes(paymentStatus);
 };
 
 const isDummyOrder = (order) => {
@@ -387,6 +407,145 @@ const AdminLiveTracking = () => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState(null);
   const [error, setError] = useState("");
+
+  // Delivery Boy Assignment State
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [fleetRiders, setFleetRiders] = useState([]);
+  const [selectedFleetRider, setSelectedFleetRider] = useState(null);
+  const [assignTab, setAssignTab] = useState("FLEET"); // "FLEET" | "CUSTOM"
+  const [customRider, setCustomRider] = useState({
+    name: "",
+    phone: "",
+    vehicleType: "Motorcycle (Express)",
+    vehicleNumber: "",
+  });
+  const [assignEta, setAssignEta] = useState(30);
+  const [assignStatus, setAssignStatus] = useState("ASSIGNED");
+
+  const fetchFleetRiders = async () => {
+    try {
+      const res = await API.get("/riders");
+      if (res.data?.success) {
+        const list = res.data.riders || [];
+        setFleetRiders(list);
+        if (list.length > 0) {
+          setSelectedFleetRider(list[0]);
+          setAssignTab("FLEET");
+        } else {
+          setAssignTab("CUSTOM");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load riders:", err);
+      setAssignTab("CUSTOM");
+    }
+  };
+
+  const handleOpenAssignModal = () => {
+    fetchFleetRiders();
+    setShowAssignModal(true);
+  };
+
+  const handleAssignRiderSubmit = async (e) => {
+    e.preventDefault();
+    const orderIdToAssign = selectedOrder?.orderId || selectedOrder?._id;
+    if (!orderIdToAssign) return;
+
+    const riderPayload =
+      assignTab === "FLEET" && selectedFleetRider
+        ? {
+            riderId: selectedFleetRider._id,
+            name: selectedFleetRider.name,
+            phone: selectedFleetRider.phone,
+            vehicleNumber: selectedFleetRider.vehicleNumber,
+            vehicleType: selectedFleetRider.vehicleType,
+            etaMinutes: Number(assignEta) || 30,
+          }
+        : {
+            name: customRider.name,
+            phone: customRider.phone,
+            vehicleNumber: customRider.vehicleNumber,
+            vehicleType: customRider.vehicleType,
+            etaMinutes: Number(assignEta) || 30,
+          };
+
+    if (!riderPayload.name || !riderPayload.phone) {
+      alert("Please provide the delivery driver's name and contact phone number.");
+      return;
+    }
+
+    try {
+      setAssignLoading(true);
+      const res = await API.put(`/tracking/${orderIdToAssign}/assign-rider`, riderPayload);
+
+      if (assignStatus === "OUT_FOR_DELIVERY") {
+        await API.put(`/tracking/${orderIdToAssign}`, {
+          deliveryStatus: "OUT_FOR_DELIVERY",
+          orderStatus: "OUT_FOR_DELIVERY",
+        });
+      }
+
+      const updated = res.data?.order || {
+        ...selectedOrder,
+        deliveryStatus: assignStatus === "OUT_FOR_DELIVERY" ? "OUT_FOR_DELIVERY" : "ASSIGNED",
+        tracking: {
+          ...selectedOrder.tracking,
+          etaMinutes: Number(assignEta) || 30,
+          rider: riderPayload,
+        },
+      };
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          getOrderIdentity(o) === getOrderIdentity(selectedOrder)
+            ? normalizeOrder({ ...o, ...updated })
+            : o
+        )
+      );
+
+      setShowAssignModal(false);
+    } catch (err) {
+      console.error("Failed to assign rider:", err);
+      alert(err?.response?.data?.message || "Failed to assign delivery boy");
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const handleUnassignRider = async () => {
+    const orderIdToUnassign = selectedOrder?.orderId || selectedOrder?._id;
+    if (!orderIdToUnassign) return;
+    if (!window.confirm("Remove assigned delivery driver from this order?")) return;
+
+    try {
+      setAssignLoading(true);
+      await API.put(`/tracking/${orderIdToUnassign}`, {
+        rider: { name: "Not assigned", phone: "N/A", vehicleNumber: "", vehicleType: "Vehicle", riderId: null },
+        deliveryStatus: "PENDING",
+      });
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          getOrderIdentity(o) === getOrderIdentity(selectedOrder)
+            ? normalizeOrder({
+                ...o,
+                deliveryStatus: "PENDING",
+                tracking: {
+                  ...o.tracking,
+                  rider: { name: "Not assigned", phone: "N/A", vehicleType: "Vehicle", vehicleNumber: "" },
+                },
+              })
+            : o
+        )
+      );
+    } catch (err) {
+      console.error("Failed to unassign driver:", err);
+      alert(err?.response?.data?.message || "Failed to unassign driver");
+    } finally {
+      setAssignLoading(false);
+    }
+  };
 
   const fetchTrackingOrders = useCallback(async (isRefresh = false) => {
     if (abortRef.current) {
@@ -953,36 +1112,96 @@ const AdminLiveTracking = () => {
                 animate="animate"
                 className="grid grid-cols-1 gap-6 lg:grid-cols-4"
               >
-                <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
-                  <div className="mb-4 inline-flex rounded-2xl bg-blue-50 p-3 text-blue-700">
-                    <UserRound size={22} />
+                <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="inline-flex rounded-2xl bg-blue-50 p-3 text-blue-700">
+                        <UserRound size={22} />
+                      </div>
+                      <span
+                        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                          selectedOrder?.tracking?.rider?.name &&
+                          selectedOrder.tracking.rider.name !== "Not assigned"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-slate-100 text-slate-500 border-slate-200"
+                        }`}
+                      >
+                        {selectedOrder?.tracking?.rider?.name &&
+                        selectedOrder.tracking.rider.name !== "Not assigned"
+                          ? "Assigned"
+                          : "Unassigned"}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-semibold text-slate-900">
+                      Driver
+                    </h3>
+
+                    <div className="mt-4 space-y-3 text-sm text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <UserRound size={16} className="text-slate-400" />
+                        <span className="font-bold text-slate-900">
+                          {selectedOrder?.tracking?.rider?.name || "Not assigned"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Phone size={16} className="text-slate-400" />
+                          <span>
+                            {selectedOrder?.tracking?.rider?.phone || "N/A"}
+                          </span>
+                        </div>
+                        {selectedOrder?.tracking?.rider?.phone &&
+                          selectedOrder.tracking.rider.phone !== "N/A" && (
+                            <a
+                              href={`tel:${selectedOrder.tracking.rider.phone}`}
+                              className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition text-xs font-bold flex items-center gap-1"
+                              title="Call Driver"
+                            >
+                              <Phone size={11} />
+                              <span>Call</span>
+                            </a>
+                          )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Bike size={16} className="text-slate-400" />
+                        <span>
+                          {selectedOrder?.tracking?.rider?.vehicleType ||
+                            "Vehicle"}
+                          {selectedOrder?.tracking?.rider?.vehicleNumber
+                            ? ` • ${selectedOrder.tracking.rider.vehicleNumber}`
+                            : ""}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-base font-semibold text-slate-900">
-                    Driver
-                  </h3>
-                  <div className="mt-4 space-y-3 text-sm text-slate-600">
-                    <div className="flex items-center gap-2">
-                      <UserRound size={16} className="text-slate-400" />
+
+                  <div className="pt-4 mt-4 border-t border-slate-100 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleOpenAssignModal}
+                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-xs flex items-center justify-center gap-1.5"
+                    >
+                      <Bike size={14} />
                       <span>
-                        {selectedOrder?.tracking?.rider?.name || "Not assigned"}
+                        {selectedOrder?.tracking?.rider?.name &&
+                        selectedOrder.tracking.rider.name !== "Not assigned"
+                          ? "Change Driver"
+                          : "Assign Delivery Boy"}
                       </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone size={16} className="text-slate-400" />
-                      <span>
-                        {selectedOrder?.tracking?.rider?.phone || "N/A"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Bike size={16} className="text-slate-400" />
-                      <span>
-                        {selectedOrder?.tracking?.rider?.vehicleType ||
-                          "Vehicle"}
-                        {selectedOrder?.tracking?.rider?.vehicleNumber
-                          ? ` • ${selectedOrder.tracking.rider.vehicleNumber}`
-                          : ""}
-                      </span>
-                    </div>
+                    </button>
+                    {selectedOrder?.tracking?.rider?.name &&
+                      selectedOrder.tracking.rider.name !== "Not assigned" && (
+                        <button
+                          type="button"
+                          onClick={handleUnassignRider}
+                          disabled={assignLoading}
+                          className="p-2 rounded-xl bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 transition text-xs font-bold"
+                          title="Unassign Driver"
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
                   </div>
                 </div>
 
@@ -1328,6 +1547,261 @@ const AdminLiveTracking = () => {
                 {clearing ? "Clearing..." : "Yes, Clear All Orders"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Delivery Boy Modal */}
+      {showAssignModal && selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-5 sm:p-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl bg-emerald-100 p-2.5 text-emerald-700">
+                  <Bike size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Assign Delivery Boy
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Order #{selectedOrder?.orderId || selectedOrder?._id} • {selectedOrder?.customerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAssignModal(false)}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Mode Switch Tabs */}
+            <div className="grid grid-cols-2 rounded-2xl bg-slate-100 p-1 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setAssignTab("FLEET")}
+                className={`py-2 rounded-xl transition ${
+                  assignTab === "FLEET"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Select Fleet Driver ({fleetRiders.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssignTab("CUSTOM")}
+                className={`py-2 rounded-xl transition ${
+                  assignTab === "CUSTOM"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Enter New Driver Details
+              </button>
+            </div>
+
+            <form onSubmit={handleAssignRiderSubmit} className="space-y-4 text-xs">
+              {assignTab === "FLEET" ? (
+                <div className="space-y-2.5">
+                  <label className="block font-bold text-slate-700">
+                    Available Delivery Drivers
+                  </label>
+                  {fleetRiders.length === 0 ? (
+                    <div className="rounded-2xl bg-slate-50 p-6 text-center text-slate-500">
+                      <p>Loading fleet drivers or no drivers registered.</p>
+                      <button
+                        type="button"
+                        onClick={() => setAssignTab("CUSTOM")}
+                        className="mt-2 text-emerald-600 font-bold hover:underline"
+                      >
+                        Enter driver details manually
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                      {fleetRiders.map((rider) => {
+                        const isSelected =
+                          selectedFleetRider?._id === rider._id ||
+                          selectedFleetRider?.name === rider.name;
+
+                        return (
+                          <div
+                            key={rider._id || rider.name}
+                            onClick={() => setSelectedFleetRider(rider)}
+                            className={`flex cursor-pointer items-center justify-between rounded-2xl border p-3.5 transition ${
+                              isSelected
+                                ? "border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20"
+                                : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`flex h-10 w-10 items-center justify-center rounded-xl font-bold ${
+                                  isSelected
+                                    ? "bg-emerald-600 text-white"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {rider.name ? rider.name.charAt(0).toUpperCase() : "D"}
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-slate-900">{rider.name}</h4>
+                                <p className="text-[11px] text-slate-500">
+                                  {rider.phone} • {rider.vehicleType}
+                                  {rider.vehicleNumber ? ` (${rider.vehicleNumber})` : ""}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                  rider.status === "AVAILABLE" && rider.active
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-amber-100 text-amber-700"
+                                }`}
+                              >
+                                {rider.status === "AVAILABLE" && rider.active
+                                  ? "Available"
+                                  : "On Delivery"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Driver Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={customRider.name}
+                      onChange={(e) =>
+                        setCustomRider({ ...customRider, name: e.target.value })
+                      }
+                      placeholder="e.g. Murugan K."
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        Driver Phone *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={customRider.phone}
+                        onChange={(e) =>
+                          setCustomRider({ ...customRider, phone: e.target.value })
+                        }
+                        placeholder="e.g. +91 98421 55678"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">
+                        Vehicle Type
+                      </label>
+                      <input
+                        type="text"
+                        value={customRider.vehicleType}
+                        onChange={(e) =>
+                          setCustomRider({
+                            ...customRider,
+                            vehicleType: e.target.value,
+                          })
+                        }
+                        placeholder="Motorcycle / Scooter"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Vehicle Registration Plate
+                    </label>
+                    <input
+                      type="text"
+                      value={customRider.vehicleNumber}
+                      onChange={(e) =>
+                        setCustomRider({
+                          ...customRider,
+                          vehicleNumber: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. TN-67-AX-4092"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Estimated Delivery ETA
+                  </label>
+                  <select
+                    value={assignEta}
+                    onChange={(e) => setAssignEta(Number(e.target.value))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+                  >
+                    <option value={15}>15 Minutes Express</option>
+                    <option value={30}>30 Minutes Standard</option>
+                    <option value={45}>45 Minutes Express</option>
+                    <option value={60}>60 Minutes Doorstep</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Dispatch Stage
+                  </label>
+                  <select
+                    value={assignStatus}
+                    onChange={(e) => setAssignStatus(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+                  >
+                    <option value="ASSIGNED">Assign Driver (Confirmed)</option>
+                    <option value="OUT_FOR_DELIVERY">
+                      Assign &amp; Mark Out for Delivery
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAssignModal(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={assignLoading}
+                  className="rounded-xl bg-emerald-600 px-5 py-2.5 font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Bike size={16} />
+                  <span>{assignLoading ? "Assigning..." : "Confirm & Assign Driver"}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

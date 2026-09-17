@@ -1,9 +1,11 @@
 const User = require("../models/User");
 const Order = require("../models/Order");
+const Customer = require("../models/Customer");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const generateOtp = require("../utils/generateOtp");
 const { sendEmailOtp } = require("../utils/sendOtpService");
+const { syncSingleUserToCustomer } = require("./customerController");
 
 const normalizePhone = (phone = "") => String(phone).replace(/\D/g, "").slice(-10);
 const normalizeEmail = (email = "") => String(email).trim().toLowerCase();
@@ -64,6 +66,12 @@ const registerUser = async (req, res) => {
       otpExpiresAt: null,
     });
 
+    try {
+      await syncSingleUserToCustomer(user._id);
+    } catch (custErr) {
+      console.warn("Could not sync customer on register:", custErr.message);
+    }
+
     const token = generateToken(user._id);
 
     return res.status(201).json({
@@ -122,6 +130,12 @@ const loginUser = async (req, res) => {
         success: false,
         message: "Invalid email or password. Please try again.",
       });
+    }
+
+    try {
+      await syncSingleUserToCustomer(user._id);
+    } catch (custErr) {
+      console.warn("Could not sync customer on login:", custErr.message);
     }
 
     const token = generateToken(user._id);
@@ -269,6 +283,12 @@ const verifyOtp = async (req, res) => {
     user.otp = null;
     user.otpExpiresAt = null;
     await user.save();
+
+    try {
+      await syncSingleUserToCustomer(user._id);
+    } catch (custErr) {
+      console.warn("Could not sync customer on OTP verify:", custErr.message);
+    }
 
     const token = generateToken(user._id);
 

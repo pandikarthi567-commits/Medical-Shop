@@ -16,8 +16,8 @@ const { protect } = require("../middleware/authMiddleware");
 // Admin page: all orders with delivery/non-delivery split support
 router.get("/admin/orders/live-tracking", protect, getAdminOrdersLiveTracking);
 
-// Single order tracking
-router.get("/:orderId", protect, getOrderTrackingByOrderId);
+// Single order tracking (supports public lookup by orderId)
+router.get("/:orderId", getOrderTrackingByOrderId);
 
 // Admin actions
 router.put("/:orderId", protect, updateOrderTrackingByAdmin);

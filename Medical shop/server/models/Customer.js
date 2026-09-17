@@ -7,6 +7,11 @@ const customerSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     name: {
       type: String,
       required: true,
@@ -14,28 +19,50 @@ const customerSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     email: {
       type: String,
       default: "",
       trim: true,
+      lowercase: true,
     },
     customerType: {
       type: String,
-      enum: ["Retail", "Hospital", "Clinic", "Wholesale"],
       default: "Retail",
+      trim: true,
     },
     location: {
       type: String,
-      default: "Chennai",
+      default: "Virudhunagar",
       trim: true,
     },
     totalPurchases: {
       type: Number,
       default: 0,
       min: 0,
+    },
+    ordersCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    bloodGroup: {
+      type: String,
+      default: "",
+    },
+    gender: {
+      type: String,
+      default: "",
+    },
+    age: {
+      type: String,
+      default: "",
+    },
+    emergencyContact: {
+      type: String,
+      default: "",
     },
     lastPurchase: {
       type: Date,
@@ -59,12 +86,20 @@ const customerSchema = new mongoose.Schema(
 );
 
 // Auto-generate customerId before saving if missing
-customerSchema.pre("save", async function (next) {
+customerSchema.pre("save", async function () {
   if (!this.customerId) {
-    const count = await mongoose.model("Customer").countDocuments();
-    this.customerId = `CUST-${String(count + 1).padStart(4, "0")}`;
+    let candidate = "";
+    for (let attempts = 0; attempts < 50; attempts++) {
+      const count = await mongoose.model("Customer").countDocuments();
+      const testId = `CUST-${String(count + 1 + attempts).padStart(4, "0")}`;
+      const exists = await mongoose.model("Customer").findOne({ customerId: testId });
+      if (!exists) {
+        candidate = testId;
+        break;
+      }
+    }
+    this.customerId = candidate || `CUST-${Date.now().toString().slice(-6)}`;
   }
-  next();
 });
 
 module.exports = mongoose.model("Customer", customerSchema);
