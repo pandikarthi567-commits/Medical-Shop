@@ -1,13 +1,170 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ShoppingCart, Package, Boxes, Users,
-  Star, AlertCircle, Zap, Calendar, ChevronDown,
+  Star, AlertCircle, Zap, Calendar, ChevronDown, ChevronRight,
   Store, ArrowUpRight, BarChart2, PlusCircle, UserPlus, FileBarChart,
 } from "lucide-react";
 import API from "../api/axios";
 import { itemVariants, buttonMotion, containerVariants } from "./components/pageMotion";
+
+// 3D Medicine Icon Components matching image
+const RedWhiteCapsule = () => (
+  <svg width="28" height="28" viewBox="0 0 32 32" className="drop-shadow-xs shrink-0">
+    <defs>
+      <linearGradient id="capRed" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#ff4d4f" />
+        <stop offset="70%" stopColor="#e02424" />
+        <stop offset="100%" stopColor="#991b1b" />
+      </linearGradient>
+      <linearGradient id="capWhite" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#ffffff" />
+        <stop offset="70%" stopColor="#f1f5f9" />
+        <stop offset="100%" stopColor="#cbd5e1" />
+      </linearGradient>
+      <filter id="capShadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="1" dy="1.5" stdDeviation="1.2" floodColor="#000000" floodOpacity="0.18" />
+      </filter>
+    </defs>
+    <g transform="rotate(-40 16 16)" filter="url(#capShadow)">
+      <path d="M12 6 C12 3.8 13.8 2 16 2 C18.2 2 20 3.8 20 6 L20 16 L12 16 Z" fill="url(#capRed)" />
+      <path d="M12 16 L20 16 L20 26 C20 28.2 18.2 30 16 30 C13.8 30 12 28.2 12 26 Z" fill="url(#capWhite)" />
+      <line x1="12" y1="16" x2="20" y2="16" stroke="#e2e8f0" strokeWidth="0.8" />
+      <path d="M13.5 5 C13.5 4 14.5 3 15.5 3 C15.5 8 15.5 12 15.5 14 C14.5 14 13.5 13 13.5 12 Z" fill="#ffffff" opacity="0.6" />
+    </g>
+  </svg>
+);
+
+const WhiteTablet = () => (
+  <svg width="28" height="28" viewBox="0 0 32 32" className="drop-shadow-xs shrink-0">
+    <defs>
+      <linearGradient id="tabWhite" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#ffffff" />
+        <stop offset="50%" stopColor="#f8fafc" />
+        <stop offset="100%" stopColor="#d1d5db" />
+      </linearGradient>
+      <filter id="tabShadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="1" dy="1.5" stdDeviation="1.2" floodColor="#000000" floodOpacity="0.15" />
+      </filter>
+    </defs>
+    <g filter="url(#tabShadow)">
+      <ellipse cx="16" cy="16" rx="11" ry="11" fill="url(#tabWhite)" />
+      <ellipse cx="16" cy="16" rx="9" ry="9" fill="none" stroke="#e2e8f0" strokeWidth="0.75" />
+      <line x1="7" y1="16" x2="25" y2="16" stroke="#cbd5e1" strokeWidth="1.2" strokeLinecap="round" />
+      <ellipse cx="13" cy="12" rx="4" ry="2.5" fill="#ffffff" opacity="0.85" transform="rotate(-30 13 12)" />
+    </g>
+  </svg>
+);
+
+const RedCapsule = () => (
+  <svg width="28" height="28" viewBox="0 0 32 32" className="drop-shadow-xs shrink-0">
+    <defs>
+      <linearGradient id="capFullRed" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#ff4d4f" />
+        <stop offset="60%" stopColor="#dc2626" />
+        <stop offset="100%" stopColor="#991b1b" />
+      </linearGradient>
+      <filter id="capRedShadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="1" dy="1.5" stdDeviation="1.2" floodColor="#000000" floodOpacity="0.18" />
+      </filter>
+    </defs>
+    <g transform="rotate(-40 16 16)" filter="url(#capRedShadow)">
+      <rect x="12" y="2" width="8" height="28" rx="4" fill="url(#capFullRed)" />
+      <line x1="12" y1="16" x2="20" y2="16" stroke="#b91c1c" strokeWidth="0.8" />
+      <path d="M13.5 5 C13.5 4 14.5 3 15.5 3 C15.5 8 15.5 12 15.5 14 C14.5 14 13.5 13 13.5 12 Z" fill="#ffffff" opacity="0.5" />
+    </g>
+  </svg>
+);
+
+const BlueCapsule = () => (
+  <svg width="28" height="28" viewBox="0 0 32 32" className="drop-shadow-xs shrink-0">
+    <defs>
+      <linearGradient id="capBlue" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#60a5fa" />
+        <stop offset="60%" stopColor="#2563eb" />
+        <stop offset="100%" stopColor="#1e40af" />
+      </linearGradient>
+      <filter id="capBlueShadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="1" dy="1.5" stdDeviation="1.2" floodColor="#000000" floodOpacity="0.18" />
+      </filter>
+    </defs>
+    <g transform="rotate(-40 16 16)" filter="url(#capBlueShadow)">
+      <rect x="12" y="2" width="8" height="28" rx="4" fill="url(#capBlue)" />
+      <line x1="12" y1="16" x2="20" y2="16" stroke="#1d4ed8" strokeWidth="0.8" />
+      <path d="M13.5 5 C13.5 4 14.5 3 15.5 3 C15.5 8 15.5 12 15.5 14 C14.5 14 13.5 13 13.5 12 Z" fill="#ffffff" opacity="0.55" />
+    </g>
+  </svg>
+);
+
+const YellowTablet = () => (
+  <svg width="28" height="28" viewBox="0 0 32 32" className="drop-shadow-xs shrink-0">
+    <defs>
+      <linearGradient id="tabYellow" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#fef08a" />
+        <stop offset="50%" stopColor="#facc15" />
+        <stop offset="100%" stopColor="#ca8a04" />
+      </linearGradient>
+      <filter id="tabYelShadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="1" dy="1.5" stdDeviation="1.2" floodColor="#000000" floodOpacity="0.15" />
+      </filter>
+    </defs>
+    <g filter="url(#tabYelShadow)">
+      <ellipse cx="16" cy="16" rx="11" ry="11" fill="url(#tabYellow)" />
+      <ellipse cx="16" cy="16" rx="9" ry="9" fill="none" stroke="#eab308" strokeWidth="0.75" />
+      <line x1="7" y1="16" x2="25" y2="16" stroke="#a16207" strokeWidth="1.2" strokeLinecap="round" />
+      <ellipse cx="13" cy="12" rx="4" ry="2.5" fill="#ffffff" opacity="0.7" transform="rotate(-30 13 12)" />
+    </g>
+  </svg>
+);
+
+const topSellingMedicines = [
+  {
+    rank: 1,
+    name: "Paracetamol",
+    units: 120,
+    progress: 78,
+    badgeBg: "bg-emerald-50 text-emerald-600",
+    barColor: "bg-emerald-500",
+    icon: RedWhiteCapsule,
+  },
+  {
+    rank: 2,
+    name: "Dolo 650",
+    units: 95,
+    progress: 60,
+    badgeBg: "bg-blue-50 text-blue-600",
+    barColor: "bg-blue-600",
+    icon: WhiteTablet,
+  },
+  {
+    rank: 3,
+    name: "Cetirizine",
+    units: 72,
+    progress: 46,
+    badgeBg: "bg-amber-50 text-amber-600",
+    barColor: "bg-amber-500",
+    icon: RedCapsule,
+  },
+  {
+    rank: 4,
+    name: "Azithromycin",
+    units: 48,
+    progress: 32,
+    badgeBg: "bg-purple-50 text-purple-600",
+    barColor: "bg-purple-500",
+    icon: BlueCapsule,
+  },
+  {
+    rank: 5,
+    name: "Vitamin C",
+    units: 35,
+    progress: 24,
+    badgeBg: "bg-rose-50 text-rose-600",
+    barColor: "bg-rose-500",
+    icon: YellowTablet,
+  },
+];
 
 const monthlyData = [
   { label: "Jan", amount: 13.5, orders: 8 },
@@ -270,58 +427,103 @@ const DashboardPage = () => {
           <SalesChart data={monthlyData} />
         </motion.div>
 
-        {/* Donut Chart */}
-        <motion.div variants={itemVariants} className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[15px] font-bold text-slate-800">Order Status Distribution</h2>
-            <button className="text-[11px] font-semibold text-emerald-600 hover:underline">View Details</button>
+        {/* Top Selling Medicines Widget matching user image */}
+        <motion.div variants={itemVariants} className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-xs flex flex-col justify-between">
+          <div>
+            {/* Header */}
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-[16px] sm:text-[17px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="3" y="11" width="4" height="10" rx="1.5" />
+                    <rect x="10" y="5" width="4" height="16" rx="1.5" />
+                    <rect x="17" y="1" width="4" height="20" rx="1.5" />
+                  </svg>
+                  Top Selling Medicines
+                </h2>
+                <p className="text-[11.5px] text-slate-400 mt-0.5">Most sold medicines this month</p>
+              </div>
+              <Link
+                to="/admin/inventory"
+                className="text-[12.5px] font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5 shrink-0 hover:underline transition-colors mt-0.5"
+              >
+                View All <ChevronRight size={14} className="stroke-[2.5]" />
+              </Link>
+            </div>
+
+            {/* List of 5 items */}
+            <div className="space-y-3.5">
+              {topSellingMedicines.map((item, idx) => {
+                const IconComponent = item.icon;
+                return (
+                  <motion.div
+                    key={item.rank}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: idx * 0.05 }}
+                    className="flex items-center gap-3 p-1.5 rounded-xl hover:bg-slate-50/80 transition-colors"
+                  >
+                    {/* Rank Badge */}
+                    <div
+                      className={`w-7 h-7 rounded-full ${item.badgeBg} font-bold text-[12.5px] flex items-center justify-center shrink-0 shadow-2xs`}
+                    >
+                      {item.rank}
+                    </div>
+
+                    {/* 3D Medicine Icon */}
+                    <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                      <IconComponent />
+                    </div>
+
+                    {/* Name & Progress Bar */}
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[14px] font-bold text-slate-800 leading-tight truncate">
+                        {item.name}
+                      </h4>
+                      <div className="w-full bg-slate-100 rounded-full h-2 mt-1.5 overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${item.progress}%` }}
+                          transition={{ duration: 0.8, delay: 0.15 + idx * 0.08, ease: "easeOut" }}
+                          className={`h-full rounded-full ${item.barColor}`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Units Count */}
+                    <div className="text-right shrink-0 pl-2">
+                      <div className="text-[14.5px] font-bold text-slate-900 leading-none">
+                        {item.units}
+                      </div>
+                      <div className="text-[10.5px] text-slate-400 font-medium mt-0.5">
+                        units
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
           </div>
-          <DonutChart segments={categoryData} totalOrders={totalOrders} />
         </motion.div>
       </motion.div>
 
-      {/* 4. Tables Row */}
+      {/* 4. Tables & Category Breakdown Row */}
       <motion.div variants={containerVariants} initial="initial" animate="animate"
         className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Top Selling */}
-        <motion.div variants={itemVariants} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="flex items-center justify-between px-5 pt-5 pb-1">
-            <h2 className="text-[15px] font-bold text-slate-800 flex items-center gap-2">
-              <Star size={14} className="text-amber-400 fill-amber-400" /> Top Selling Medicines
-            </h2>
-            <Link to="/admin/inventory" className="text-[11px] font-semibold text-emerald-600 hover:underline flex items-center gap-0.5">
-              View All <ArrowUpRight size={11} />
+        {/* Category & Order Distribution */}
+        <motion.div variants={itemVariants} className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-[15px] font-bold text-slate-800 flex items-center gap-2">
+                <Star size={14} className="text-emerald-500 fill-emerald-500" /> Order & Category Distribution
+              </h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">Medicine category distribution by orders</p>
+            </div>
+            <Link to="/admin/sales" className="text-[11px] font-semibold text-emerald-600 hover:underline">
+              View Sales
             </Link>
           </div>
-          <p className="text-[10px] text-slate-400 px-5 mb-3">Most sold medicines by units</p>
-          <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[360px]">
-              <thead>
-                <tr className="bg-slate-50 border-y border-slate-100">
-                  <th className="text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2 pl-5 pr-2 w-8">#</th>
-                  <th className="text-left text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2 px-2">Medicine Name</th>
-                  <th className="text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2 px-2">Units Sold</th>
-                  <th className="text-right text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2 pl-2 pr-5">Revenue</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {topSelling.map((med, i) => (
-                  <motion.tr key={med.rank}
-                    initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.18, delay: i * 0.04 }}
-                    className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-2.5 pl-5 pr-2">
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[10px] font-bold"
-                        style={{ backgroundColor: med.color }}>{med.rank}</span>
-                    </td>
-                    <td className="py-2.5 px-2 text-[12.5px] font-medium text-slate-700">{med.name}</td>
-                    <td className="py-2.5 px-2 text-right text-[12.5px] text-slate-600">{med.units}</td>
-                    <td className="py-2.5 pl-2 pr-5 text-right text-[12.5px] font-semibold text-slate-800">Rs {med.revenue}</td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DonutChart segments={categoryData} totalOrders={totalOrders} />
         </motion.div>
 
         {/* Low Stock / Expiry */}

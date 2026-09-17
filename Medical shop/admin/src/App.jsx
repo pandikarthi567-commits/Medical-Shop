@@ -6,11 +6,9 @@ import AdminRoute from "./AdminPage/AdminRoute";
 import AdminLoginPage from "./AdminPage/AdminLoginPage";
 import DashboardPage from "./AdminPage/DashboardPage";
 import SalesPage from "./AdminPage/SalesPage";
-import OrdersPage from "./AdminPage/OrdersPage";
 import OrderDetailsPage from "./AdminPage/OrderDetailsPage";
 import AdminLiveTracking from "./AdminPage/AdminLiveTracking";
 import EditMedicineListPage from "./AdminPage/EditMedicineListPage";
-import AddMedicine from "./AdminPage/AddMedicine";
 import EditMedicine from "./AdminPage/EditMedicine";
 import LowStockPage from "./AdminPage/LowStockPage";
 import ExpiryManagementPage from "./AdminPage/ExpiryManagementPage";
@@ -57,7 +55,7 @@ function App() {
           <Route path="/admin/medicines" element={<InventoryPage />} />
           <Route path="/admin/inventory" element={<InventoryPage />} />
           <Route path="/admin/medicines/manage" element={<EditMedicineListPage />} />
-          <Route path="/admin/medicines/add" element={<AddMedicine />} />
+          <Route path="/admin/medicines/add" element={<PurchasePage />} />
           <Route path="/admin/medicines/edit/:id" element={<EditMedicine />} />
           <Route path="/admin/medicines/low-stock" element={<LowStockPage />} />
           <Route path="/admin/expiry" element={<ExpiryManagementPage />} />
