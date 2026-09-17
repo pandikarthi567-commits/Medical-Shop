@@ -4,6 +4,9 @@ const Order = require("../models/Order");
 const Medicine = require("../models/Medicine");
 const User = require("../models/User");
 
+const dns = require("dns");
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
+
 dotenv.config();
 
 const salesData = [
@@ -151,7 +154,7 @@ const salesData = [
 
 const seedSalesData = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/medical_shop");
+    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI || "mongodb://localhost:27017/medical_shop");
     console.log("Connected to MongoDB for sales seed.");
 
     // 1. Ensure user exists

@@ -18,8 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import API from "../api/axios";
 
 const pageVariants = {
   initial: { opacity: 0, y: 24, scale: 0.985 },
@@ -288,8 +287,8 @@ const HealthcarePage = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch(`${API_BASE}/medicines/categories/list`);
-      const data = await res.json();
+      const res = await API.get("/medicines/categories/list");
+      const data = res.data;
 
       if (data.success) {
         const incomingCategories = Array.isArray(data.categories) ? data.categories : [];
@@ -327,16 +326,17 @@ const HealthcarePage = () => {
       setLoading(true);
       setError("");
 
-      const params = new URLSearchParams();
-      params.set("limit", "50");
+      const params = {
+        limit: 50,
+      };
 
-      if (searchTerm.trim()) params.set("search", searchTerm.trim());
-      if (selectedCategory !== "All") params.set("category", selectedCategory);
-      if (onlyInStock) params.set("inStock", "true");
-      if (sortBy && sortBy !== "latest") params.set("sort", sortBy);
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+      if (selectedCategory !== "All") params.category = selectedCategory;
+      if (onlyInStock) params.inStock = "true";
+      if (sortBy && sortBy !== "latest") params.sort = sortBy;
 
-      const res = await fetch(`${API_BASE}/medicines?${params.toString()}`);
-      const data = await res.json();
+      const res = await API.get("/medicines", { params });
+      const data = res.data;
 
       if (!data.success) {
         throw new Error(data.message || "Failed to fetch medicines");
@@ -344,7 +344,7 @@ const HealthcarePage = () => {
 
       setProducts(data.medicines || []);
     } catch (err) {
-      setError(err.message || "Something went wrong");
+      setError(err.response?.data?.message || err.message || "Something went wrong");
       setProducts([]);
     } finally {
       setLoading(false);

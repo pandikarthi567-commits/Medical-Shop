@@ -2,11 +2,14 @@ const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const Admin = require("../models/Admin");
 
+const dns = require("dns");
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
+
 dotenv.config();
 
 const seedAdmin = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
     console.log("MongoDB connected");
 
     const adminEmail = "pandikarthi567@gmail.com";

@@ -21,8 +21,7 @@ import {
   HeartPulse,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import API from "../api/axios";
 
 const iconMap = {
   Grid3X3,
@@ -250,19 +249,15 @@ const CategoriesPage = () => {
       setLoadingCategories(true);
       setErrorCategories("");
 
-      const query = new URLSearchParams();
+      const params = {};
       if (safeText(searchValue).trim()) {
-        query.set("search", safeText(searchValue).trim());
+        params.search = safeText(searchValue).trim();
       }
 
-      const url = `${API_BASE}/medicines/categories/summary${
-        query.toString() ? `?${query.toString()}` : ""
-      }`;
+      const response = await API.get("/medicines/categories/summary", { params });
+      const data = response.data;
 
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.message || "Failed to fetch categories");
       }
 
@@ -290,7 +285,7 @@ const CategoriesPage = () => {
 
       setCategories(normalizedCategories);
     } catch (error) {
-      setErrorCategories(error.message || "Failed to load categories");
+      setErrorCategories(error.response?.data?.message || error.message || "Failed to load categories");
       setCategories([]);
     } finally {
       setLoadingCategories(false);
@@ -302,23 +297,21 @@ const CategoriesPage = () => {
       setLoadingFeatured(true);
       setErrorFeatured("");
 
-      const response = await fetch(`${API_BASE}/medicines/featured/list`);
+      const response = await API.get("/medicines/featured/list");
+      const data = response.data;
 
-      if (response.status === 404) {
-        setFeaturedProducts([]);
-        setErrorFeatured("Featured products endpoint not found");
-        return;
-      }
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.message || "Failed to fetch featured products");
       }
 
       setFeaturedProducts(data.medicines || []);
     } catch (error) {
-      setErrorFeatured(error.message || "Failed to load featured products");
+      if (error.response?.status === 404) {
+        setFeaturedProducts([]);
+        setErrorFeatured("Featured products endpoint not found");
+        return;
+      }
+      setErrorFeatured(error.response?.data?.message || error.message || "Failed to load featured products");
       setFeaturedProducts([]);
     } finally {
       setLoadingFeatured(false);

@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import API from "../api/axios";
 import PageWrapper from "../components/LandingPage/PageWrapper";
 
 const highlights = [
@@ -55,17 +56,17 @@ const OffersPage = () => {
         setLoading(true);
         setError("");
 
-        const res = await fetch("http://localhost:5000/api/offers/public");
-        const data = await res.json();
+        const res = await API.get("/offers/public");
+        const data = res.data;
 
-        if (!res.ok) {
+        if (!data.success && !data.offers) {
           throw new Error(data.message || "Failed to fetch offers");
         }
 
         setOffers(data.offers || []);
       } catch (err) {
         console.error("Fetch offers error:", err);
-        setError(err.message || "Unable to load offers");
+        setError(err.response?.data?.message || err.message || "Unable to load offers");
       } finally {
         setLoading(false);
       }

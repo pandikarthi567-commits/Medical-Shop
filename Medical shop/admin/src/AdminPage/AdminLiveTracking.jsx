@@ -574,8 +574,8 @@ const AdminLiveTracking = () => {
 
   if (loading) {
     return (
-      <PageTransition className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-        <div className="mx-auto max-w-7xl">
+      <PageTransition className="space-y-6">
+        <div className="w-full">
           <div className="mb-8 h-10 w-64 animate-pulse rounded-xl bg-slate-200" />
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
             <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -603,7 +603,7 @@ const AdminLiveTracking = () => {
 
   if (error) {
     return (
-      <PageTransition className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
+      <PageTransition className="space-y-6">
         <div className="mx-auto max-w-4xl rounded-3xl border border-red-100 bg-white p-8 shadow-sm">
           <div className="flex items-start gap-4">
             <div className="rounded-2xl bg-red-50 p-3 text-red-600">
@@ -629,8 +629,8 @@ const AdminLiveTracking = () => {
   }
 
   return (
-    <PageTransition className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50 p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl">
+    <PageTransition className="space-y-6">
+      <div className="w-full">
         <motion.div
           variants={fadeUpItem}
           initial="initial"

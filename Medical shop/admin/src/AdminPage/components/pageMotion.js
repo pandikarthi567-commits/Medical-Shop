@@ -3,7 +3,24 @@
 // Page-level: very quick fade + tiny upward slide. NO stagger/beforeChildren delay.
 export const pageVariants = {
   initial: { opacity: 0, y: 6 },
+  hidden: { opacity: 0, y: 6 },
   animate: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.18,
+      ease: "easeOut",
+    },
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.18,
+      ease: "easeOut",
+    },
+  },
+  show: {
     opacity: 1,
     y: 0,
     transition: {
@@ -21,7 +38,22 @@ export const pageVariants = {
 // Container that staggers children – fast stagger (20ms gap)
 export const containerVariants = {
   initial: { opacity: 0 },
+  hidden: { opacity: 0 },
   animate: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.04,
+      delayChildren: 0,
+    },
+  },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.04,
+      delayChildren: 0,
+    },
+  },
+  show: {
     opacity: 1,
     transition: {
       staggerChildren: 0.04,
@@ -33,7 +65,18 @@ export const containerVariants = {
 // Individual card / section item – snappy fade-up
 export const itemVariants = {
   initial: { opacity: 0, y: 10 },
+  hidden: { opacity: 0, y: 10 },
   animate: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.2, ease: "easeOut" },
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.2, ease: "easeOut" },
+  },
+  show: {
     opacity: 1,
     y: 0,
     transition: { duration: 0.2, ease: "easeOut" },
@@ -67,7 +110,20 @@ export const iconButtonMotion = {
 // Modal pop-in
 export const modalVariants = {
   hidden: { opacity: 0, scale: 0.96, y: 8 },
+  initial: { opacity: 0, scale: 0.96, y: 8 },
   visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 400, damping: 28 },
+  },
+  animate: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 400, damping: 28 },
+  },
+  show: {
     opacity: 1,
     scale: 1,
     y: 0,
@@ -84,7 +140,26 @@ export const modalVariants = {
 // Table rows – stagger index-based but very fast
 export const tableRowVariants = {
   initial: { opacity: 0, y: 5 },
+  hidden: { opacity: 0, y: 5 },
   animate: (custom = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.16,
+      delay: Math.min(custom * 0.02, 0.25),
+      ease: "easeOut",
+    },
+  }),
+  visible: (custom = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.16,
+      delay: Math.min(custom * 0.02, 0.25),
+      ease: "easeOut",
+    },
+  }),
+  show: (custom = 0) => ({
     opacity: 1,
     y: 0,
     transition: {
@@ -99,7 +174,10 @@ export const tableRowVariants = {
 // Backward-compat alias used by LowStockPage / AdminOffersPage
 export const fadeUp = {
   initial: { opacity: 0, y: 12 },
+  hidden: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: "easeOut" } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: "easeOut" } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.2, ease: "easeOut" } },
   exit: { opacity: 0, y: -6, transition: { duration: 0.12 } },
 };
 

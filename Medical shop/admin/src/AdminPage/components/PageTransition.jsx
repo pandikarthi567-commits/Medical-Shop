@@ -8,7 +8,21 @@ export const pageVariants = {
     opacity: 0,
     y: 20,
   },
+  initial: {
+    opacity: 0,
+    y: 20,
+  },
   visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      ease: "easeOut",
+      when: "beforeChildren",
+      staggerChildren: 0.12,
+    },
+  },
+  animate: {
     opacity: 1,
     y: 0,
     transition: {
@@ -34,7 +48,19 @@ export const fadeUpItem = {
     opacity: 0,
     y: 25,
   },
+  initial: {
+    opacity: 0,
+    y: 25,
+  },
   visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.45,
+      ease: "easeOut",
+    },
+  },
+  animate: {
     opacity: 1,
     y: 0,
     transition: {
@@ -46,15 +72,9 @@ export const fadeUpItem = {
 
 const PageTransition = ({ children, className = "" }) => {
   return (
-    <motion.div
-      className={className}
-      variants={pageVariants}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-    >
+    <div className={className}>
       {children}
-    </motion.div>
+    </div>
   );
 };
 

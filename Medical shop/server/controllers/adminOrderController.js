@@ -336,18 +336,11 @@ const getOrderByIdForAdmin = async (req, res) => {
 
 const getOrdersWithLiveTracking = async (req, res) => {
   try {
-    const orders = await Order.find({
-      $or: [
-        { orderStatus: { $in: ["SHIPPED", "OUT_FOR_DELIVERY"] } },
-        { deliveryStatus: { $in: ["SHIPPED", "IN_TRANSIT", "OUT_FOR_DELIVERY"] } },
-        { "tracking.liveLocation.lat": { $ne: null } },
-        { "tracking.rider.riderId": { $ne: null } },
-      ],
-    })
+    const orders = await Order.find({})
       .populate("user", "name email phone")
       .populate("items.productId", "name image price category brand")
       .populate("tracking.rider.riderId", "name email phone")
-      .sort({ updatedAt: -1 })
+      .sort({ createdAt: -1 })
       .lean();
 
     return res.status(200).json({
