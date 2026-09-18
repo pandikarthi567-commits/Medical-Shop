@@ -1,5 +1,5 @@
 const SERVER_URL = (
-  import.meta.env.VITE_API_URL || "http://localhost:5001/api"
+  import.meta.env.VITE_API_URL || "https://medical-shop-eaju.onrender.com/api"
 ).replace(/\/api\/?$/, "");
 
 export const formatImageUrl = (imagePath, fallback = "") => {
