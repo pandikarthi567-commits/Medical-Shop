@@ -98,6 +98,7 @@ app.use("/api/riders", require("./routes/riderRoutes"));
 app.use("/api/payments", require("./routes/paymentRoutes"));
 app.use("/api/purchases", require("./routes/purchaseRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
+app.use("/api/offers", require("./routes/offerRoute"));
 
 app.get("/", (req, res) => {
   res.send("API is running...");

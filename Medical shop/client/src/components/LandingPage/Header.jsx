@@ -1,7 +1,7 @@
 /* eslint-disable no-useless-assignment */
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable no-unused-vars */
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart,
@@ -20,6 +20,9 @@ import {
   ShieldCheck,
   CheckCircle2,
   Navigation,
+  Pill,
+  Loader2,
+  ChevronRight,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -58,8 +61,48 @@ const Header = () => {
     localStorage.getItem("userAddress") || ""
   );
 
+  const [headerSuggestions, setHeaderSuggestions] = useState([]);
+  const [loadingHeaderSuggestions, setLoadingHeaderSuggestions] = useState(false);
+  const [showHeaderDropdown, setShowHeaderDropdown] = useState(false);
+  const headerSearchRef = useRef(null);
+
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setHeaderSuggestions([]);
+      setShowHeaderDropdown(false);
+      setLoadingHeaderSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setLoadingHeaderSuggestions(true);
+        const { data } = await api.get(`/medicines?search=${encodeURIComponent(query)}&limit=5`);
+        setHeaderSuggestions(data?.medicines || []);
+        setShowHeaderDropdown(true);
+      } catch {
+        setHeaderSuggestions([]);
+      } finally {
+        setLoadingHeaderSuggestions(false);
+      }
+    }, 220);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (headerSearchRef.current && !headerSearchRef.current.contains(e.target)) {
+        setShowHeaderDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const syncAuthState = useCallback(() => {
     const token = localStorage.getItem("token") || "";
@@ -344,8 +387,8 @@ const Header = () => {
             </div>
           </Link>
 
-          {/* Desktop Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-xl xl:max-w-2xl mx-4">
+          {/* Desktop Search Bar with Live Autocomplete */}
+          <div ref={headerSearchRef} className="hidden md:flex flex-1 max-w-xl xl:max-w-2xl mx-4 relative">
             <form onSubmit={handleSearch} className="w-full relative">
               <div className="relative flex items-center">
                 <Search
@@ -356,19 +399,113 @@ const Header = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => {
+                    if (searchQuery.trim().length >= 2 && headerSuggestions.length > 0) {
+                      setShowHeaderDropdown(true);
+                    }
+                  }}
                   placeholder="Search medicines, healthcare devices, wellness..."
                   className="w-full pl-11 pr-24 py-2.5 sm:py-3 rounded-full bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-sm text-slate-800 placeholder:text-slate-400 border border-slate-200 focus:border-emerald-500 outline-none transition-all shadow-inner focus:shadow-md focus:ring-2 focus:ring-emerald-500/20"
                 />
+                {loadingHeaderSuggestions && (
+                  <Loader2 className="w-4 h-4 text-emerald-600 animate-spin absolute right-24" />
+                )}
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   type="submit"
-                  className="absolute right-1.5 px-4 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow transition"
+                  className="absolute right-1.5 px-4 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow transition cursor-pointer"
                 >
                   Search
                 </motion.button>
               </div>
             </form>
+
+            {/* Header Live Dropdown */}
+            <AnimatePresence>
+              {showHeaderDropdown && searchQuery.trim().length >= 2 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden z-50 divide-y divide-slate-100"
+                >
+                  <div className="px-4 py-2 bg-slate-50 flex items-center justify-between text-xs text-slate-500 font-semibold">
+                    <span className="text-emerald-800 font-bold">
+                      Medicines ({headerSuggestions.length})
+                    </span>
+                    <span className="text-[11px] text-slate-400">Click to view</span>
+                  </div>
+
+                  {loadingHeaderSuggestions && headerSuggestions.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
+                      <span>Searching...</span>
+                    </div>
+                  ) : headerSuggestions.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500">
+                      No matching medicines found for "{searchQuery}"
+                    </div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
+                      {headerSuggestions.map((med) => (
+                        <div
+                          key={med._id}
+                          onClick={() => {
+                            setShowHeaderDropdown(false);
+                            navigate(`/products?search=${encodeURIComponent(med.name)}`);
+                          }}
+                          className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-emerald-50/60 cursor-pointer transition"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                              {med.image ? (
+                                <img
+                                  src={getImageUrl(med.image)}
+                                  alt={med.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.target.style.display = "none";
+                                    e.target.nextSibling.style.display = "block";
+                                  }}
+                                />
+                              ) : null}
+                              <Pill
+                                size={14}
+                                className="text-emerald-600"
+                                style={{ display: med.image ? "none" : "block" }}
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h5 className="text-xs font-bold text-slate-900 truncate">
+                                {med.name}
+                              </h5>
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {med.brand || (typeof med.category === "object" ? med.category.name : med.category) || "Medicine"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-xs font-black text-emerald-700">₹{med.price}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div
+                    onClick={() => {
+                      setShowHeaderDropdown(false);
+                      navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+                    }}
+                    className="px-4 py-2 bg-slate-50 hover:bg-emerald-50 text-xs font-bold text-emerald-700 flex items-center justify-between cursor-pointer transition"
+                  >
+                    <span>View all results for "{searchQuery}"</span>
+                    <ChevronRight size={14} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Right Action Icons */}

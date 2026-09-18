@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import API from "../api/axios";
+import { getImageUrl } from "../utils/imageUrl";
 
 const iconMap = {
   Grid3X3,
@@ -59,74 +60,90 @@ const cardVariants = {
 const safeText = (value) => (typeof value === "string" ? value : "");
 
 const CategoryCard = ({ item, navigate }) => {
-  const Icon = iconMap[item.icon] || Grid3X3;
+  const Icon = iconMap[item.icon] || Pill;
+  const [imgError, setImgError] = useState(false);
 
   return (
     <motion.div
       layout
       whileHover={{ y: -6 }}
       transition={{ duration: 0.22 }}
-      className="group relative overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm hover:shadow-xl"
+      className="group relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-2xs hover:shadow-xl transition-all"
     >
       <div
         className={`absolute inset-x-0 top-0 h-1.5 bg-linear-to-r ${
-          item.color || "from-emerald-500 to-teal-500"
+          item.color || "from-emerald-600 to-teal-600"
         }`}
       />
 
-      <div className="p-4 sm:p-5 lg:p-6">
-        <div className="flex items-start justify-between gap-3">
-          <div
-            className={`inline-flex h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-linear-to-r ${
-              item.color || "from-emerald-500 to-teal-500"
-            } text-white items-center justify-center shadow-lg shrink-0`}
-          >
-            <Icon size={22} />
-          </div>
-
-          <span className="inline-flex rounded-full bg-red-50 text-red-500 px-2.5 py-1 text-[11px] sm:text-xs font-semibold whitespace-nowrap">
-            {item.highlight || "Featured"}
-          </span>
-        </div>
-
-        <div className="mt-4 sm:mt-5 flex items-center justify-center rounded-2xl bg-linear-to-br from-slate-50 to-emerald-50 p-4 sm:p-5 min-h-40 sm:min-h-45">
-          <img
-            src={item.image || "/images/healthcare.png"}
-            alt={item.title || "Category"}
-            className="h-24 w-24 sm:h-28 sm:w-28 md:h-32 md:w-32 object-contain transition-transform duration-300 group-hover:scale-105"
-          />
-        </div>
-
-        <div className="mt-4">
-          <h3 className="text-lg sm:text-xl font-semibold text-slate-900">
-            {item.title || "Untitled Category"}
-          </h3>
-
-          <p className="mt-2 text-sm sm:text-base text-slate-500 line-clamp-3 min-h-16 sm:min-h-18">
-            {item.description || "No description available."}
-          </p>
-
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <span className="text-sm text-emerald-600 font-medium">
-              {item.itemCount || 0}+ items
-            </span>
-
-            <button
-              onClick={() => {
-                if (item.slug === "healthcare") {
-                  navigate("/healthcare");
-                } else {
-                  navigate(
-                    `/products?category=${encodeURIComponent(item.title || "")}`
-                  );
-                }
-              }}
-              className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700 group-hover:text-emerald-600 transition-colors"
+      <div className="p-4 sm:p-5 lg:p-6 flex flex-col justify-between h-full">
+        <div>
+          <div className="flex items-start justify-between gap-3">
+            <div
+              className={`inline-flex h-12 w-12 sm:h-13 sm:w-13 rounded-2xl bg-linear-to-r ${
+                item.color || "from-emerald-600 to-teal-600"
+              } text-white items-center justify-center shadow-md shrink-0`}
             >
-              Explore
-              <ChevronRight size={16} />
-            </button>
+              <Icon size={22} />
+            </div>
+
+            <span
+              className={`inline-flex rounded-full px-2.5 py-1 text-[11px] sm:text-xs font-bold uppercase tracking-wider ${
+                item.inStockCount > 0 || item.highlight === "In Stock"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-slate-100 text-slate-600 border border-slate-200"
+              }`}
+            >
+              {item.highlight || (item.itemCount > 0 ? "In Stock" : "Limited")}
+            </span>
           </div>
+
+          <div className="mt-4 flex items-center justify-center rounded-2xl bg-linear-to-br from-slate-50 to-emerald-50/50 p-4 min-h-36 sm:min-h-40 border border-slate-100">
+            {item.image && !imgError && item.image !== "/images/healthcare.png" ? (
+              <img
+                src={getImageUrl(item.image)}
+                alt={item.title || "Category"}
+                onError={() => setImgError(true)}
+                className="h-24 w-24 sm:h-28 sm:w-28 object-contain transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-emerald-600 gap-2 py-4">
+                <Pill size={40} className="text-emerald-500 opacity-90" />
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Verified Pharmacy
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 truncate">
+              {item.title || "Category"}
+            </h3>
+
+            <p className="mt-1.5 text-xs sm:text-sm text-slate-500 line-clamp-2 leading-relaxed">
+              {item.description ||
+                `Explore authentic ${item.title} medicines and health essentials.`}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+          <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+            {item.itemCount || 0} {item.itemCount === 1 ? "item" : "items"}
+          </span>
+
+          <button
+            onClick={() => {
+              navigate(
+                `/products?category=${encodeURIComponent(item.title || "")}`
+              );
+            }}
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-700 group-hover:text-emerald-600 transition-colors cursor-pointer"
+          >
+            Explore
+            <ChevronRight size={15} />
+          </button>
         </div>
       </div>
     </motion.div>

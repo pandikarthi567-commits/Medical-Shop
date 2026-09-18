@@ -21,14 +21,24 @@ import InventoryPage from "./AdminPage/InventoryPage";
 import AddMedicine from "./AdminPage/AddMedicine";
 import ManageMedicinesPage from "./AdminPage/ManageMedicinesPage";
 import DeliveryBoysPage from "./AdminPage/DeliveryBoysPage";
+import GlowCursor from "./components/GlowCursor";
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public Admin Auth */}
-        <Route path="/admin/login" element={<AdminLoginPage />} />
-        <Route path="/login" element={<Navigate to="/admin/login" replace />} />
+    <>
+      <GlowCursor
+        primaryColor="#059669"
+        secondaryColor="#0284C7"
+        ringSize={28}
+        hoverRingSize={46}
+        dotSize={5}
+        showTrail={true}
+      />
+      <BrowserRouter>
+        <Routes>
+          {/* Public Admin Auth */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/login" element={<Navigate to="/admin/login" replace />} />
 
         {/* Protected Admin Routes */}
         <Route
@@ -92,6 +102,7 @@ function App() {
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
     </BrowserRouter>
+    </>
   );
 }
 

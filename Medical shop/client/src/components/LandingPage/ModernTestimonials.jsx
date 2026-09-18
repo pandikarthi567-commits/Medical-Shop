@@ -15,8 +15,11 @@ import {
   MapPin,
   User,
   Loader2,
+  Layers,
+  LayoutGrid,
 } from "lucide-react";
 import API from "../../api/axios";
+import ReviewDepthCarousel from "./ReviewDepthCarousel";
 
 const containerVariants = {
   hidden: {},
@@ -47,6 +50,7 @@ const ModernTestimonials = () => {
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
+  const [viewMode, setViewMode] = useState("3d"); // "3d" | "grid"
 
   // Form State
   const [formData, setFormData] = useState({
@@ -136,7 +140,7 @@ const ModernTestimonials = () => {
     }
   };
 
-  // Compute live averages
+  // Compute live averages strictly from database
   const averageRating = reviews.length
     ? (
         reviews.reduce((sum, r) => sum + (Number(r.rating) || 5), 0) /
@@ -157,7 +161,7 @@ const ModernTestimonials = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="text-center max-w-3xl mx-auto mb-12 sm:mb-14"
+          className="text-center max-w-3xl mx-auto mb-10 sm:mb-12"
         >
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-50 px-3.5 py-1 text-xs font-bold text-emerald-800 mb-3">
             <Heart size={14} className="text-emerald-600 fill-emerald-600" />
@@ -173,16 +177,48 @@ const ModernTestimonials = () => {
             Real experiences and authentic ratings shared by patients and caregivers across India.
           </p>
 
-          {/* Write a Review CTA Button */}
-          <div className="mt-6 flex justify-center">
+          {/* Action Row: Write Review CTA + 3D/Grid Switcher */}
+          <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
             <button
               type="button"
               onClick={() => setShowModal(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-linear-to-r from-emerald-600 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md hover:from-emerald-700 hover:to-teal-700 transition hover:shadow-lg active:scale-95"
+              className="inline-flex items-center gap-2 rounded-full bg-linear-to-r from-emerald-600 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md hover:from-emerald-700 hover:to-teal-700 transition hover:shadow-lg active:scale-95 cursor-pointer"
             >
               <MessageSquarePlus size={16} />
               <span>Share Your Review</span>
             </button>
+
+            {/* View Mode Switcher (Visible only when reviews exist) */}
+            {reviews.length > 0 && (
+              <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("3d")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    viewMode === "3d"
+                      ? "bg-white text-emerald-700 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  title="3D Depth Deck View"
+                >
+                  <Layers size={14} />
+                  <span>3D Deck</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    viewMode === "grid"
+                      ? "bg-white text-emerald-700 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  title="Grid View"
+                >
+                  <LayoutGrid size={14} />
+                  <span>Grid</span>
+                </button>
+              </div>
+            )}
           </div>
         </motion.div>
 
@@ -193,7 +229,7 @@ const ModernTestimonials = () => {
             <p className="text-sm font-medium text-slate-500">Loading patient reviews...</p>
           </div>
         ) : reviews.length === 0 ? (
-          /* Clean Empty State */
+          /* Clean Empty State when 0 reviews exist in DB */
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -211,14 +247,39 @@ const ModernTestimonials = () => {
             <button
               type="button"
               onClick={() => setShowModal(true)}
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-black transition"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-black transition cursor-pointer"
             >
               <Plus size={16} />
               Write First Review
             </button>
           </motion.div>
+        ) : viewMode === "3d" ? (
+          /* 3D Depth Deck Carousel for Genuine Database Reviews */
+          <div className="relative w-full h-[500px] sm:h-[540px] py-2 flex items-center justify-center">
+            <ReviewDepthCarousel
+              reviews={reviews}
+              depth={220}
+              spread={95}
+              tilt={22}
+              tiltDirection="right"
+              perspective={1400}
+              visibleCards={Math.min(4, reviews.length)}
+              falloff={0.2}
+              blur={6}
+              cardWidth={330}
+              cardHeight={440}
+              radius={26}
+              tint="#059669"
+              duration={700}
+              autoplay={reviews.length > 1}
+              autoplayDelay={3800}
+              loop={reviews.length > 1}
+              showControls={reviews.length > 1}
+              showIndicators={reviews.length > 1}
+            />
+          </div>
         ) : (
-          /* Testimonials Grid */
+          /* Genuine Database Reviews Grid View */
           <motion.div
             variants={containerVariants}
             initial="hidden"
@@ -257,12 +318,17 @@ const ModernTestimonials = () => {
                 <div className="pt-4 border-t border-slate-200/70">
                   <div className="flex items-center gap-3">
                     <div
-                      className={`h-11 w-11 rounded-full ${
-                        item.avatarBg || "bg-emerald-600"
-                      } text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0`}
+                      className="h-11 w-11 rounded-2xl bg-linear-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0"
                     >
-                      {item.initials ||
-                        (item.name ? item.name.substring(0, 2).toUpperCase() : "U")}
+                      {item.name
+                        ? item.name
+                            .split(" ")
+                            .filter(Boolean)
+                            .map((n) => n[0])
+                            .join("")
+                            .substring(0, 2)
+                            .toUpperCase()
+                        : "VP"}
                     </div>
                     <div className="min-w-0">
                       <h4 className="font-bold text-sm text-slate-900 truncate">
@@ -343,7 +409,7 @@ const ModernTestimonials = () => {
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="absolute top-5 right-5 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                className="absolute top-5 right-5 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
               >
                 <X size={20} />
               </button>
@@ -375,7 +441,7 @@ const ModernTestimonials = () => {
                         onClick={() => setFormData({ ...formData, rating: star })}
                         onMouseEnter={() => setHoverRating(star)}
                         onMouseLeave={() => setHoverRating(0)}
-                        className="p-1 transition-transform hover:scale-110"
+                        className="p-1 transition-transform hover:scale-110 cursor-pointer"
                       >
                         <Star
                           size={28}
@@ -465,14 +531,14 @@ const ModernTestimonials = () => {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                    className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-emerald-700 transition disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-emerald-700 transition disabled:opacity-50 cursor-pointer"
                   >
                     {submitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

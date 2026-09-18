@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const path = require("path");
+const fs = require("fs");
 const Medicine = require("../models/Medicine");
 const Category = require("../models/Category");
 const User = require("../models/User");
@@ -65,9 +67,6 @@ const sanitizeImageUrl = (value, fallback = "") => {
 
   return trimmed;
 };
-
-const path = require("path");
-const fs = require("fs");
 
 const validateCategory = async (categoryName) => {
   if (!categoryName || !String(categoryName).trim()) return null;
@@ -807,13 +806,26 @@ const getExpiringMedicines = async (req, res) => {
 
 const getMedicineCategories = async (req, res) => {
   try {
-    const categories = await Category.find({ isActive: true })
-      .select("name slug")
-      .sort({ name: 1 });
+    const today = startOfToday();
+    const distinctCatNames = await Medicine.distinct("category", {
+      expiryDate: { $gte: today },
+    });
+
+    const categoryList = distinctCatNames
+      .filter((name) => Boolean(name && String(name).trim()))
+      .map((name) => ({
+        name: String(name).trim(),
+        slug: String(name)
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, ""),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     return res.status(200).json({
       success: true,
-      categories: [{ name: "All", slug: "all" }, ...categories],
+      categories: [{ name: "All", slug: "all" }, ...categoryList],
     });
   } catch (error) {
     console.error("Get medicine categories error:", error);
@@ -826,57 +838,112 @@ const getMedicineCategories = async (req, res) => {
 
 const getCategorySummary = async (req, res) => {
   try {
-    const categories = await Category.find({ isActive: true })
-      .select("name slug image description")
-      .sort({ name: 1 });
-
     const today = startOfToday();
-    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
 
-    const filteredCategories = search
-      ? categories.filter((cat) => {
-          const name = cat.name ? cat.name.toLowerCase() : "";
-          const description = cat.description ? cat.description.toLowerCase() : "";
-          const keyword = search.toLowerCase();
-          return name.includes(keyword) || description.includes(keyword);
-        })
-      : categories;
+    // 1. Get all distinct category names from active medicines
+    const distinctCatNames = await Medicine.distinct("category", {
+      expiryDate: { $gte: today },
+    });
 
+    const validCatNames = distinctCatNames.filter((name) => Boolean(name && String(name).trim()));
+
+    // 2. Fetch category metadata if exists
+    const categoryDocs = await Category.find({
+      name: { $in: validCatNames },
+      isActive: true,
+    });
+
+    const categoryMap = new Map();
+    categoryDocs.forEach((c) => {
+      if (c?.name) categoryMap.set(c.name.toLowerCase().trim(), c);
+    });
+
+    const colorPalettes = [
+      "from-emerald-600 to-teal-600",
+      "from-cyan-600 to-blue-600",
+      "from-indigo-600 to-violet-600",
+      "from-teal-600 to-emerald-700",
+      "from-blue-600 to-cyan-600",
+      "from-emerald-500 to-teal-500",
+    ];
+
+    const iconList = ["Pill", "HeartPulse", "Sparkles", "ShieldCheck", "LayoutGrid", "Baby", "Grid3X3"];
+
+    // 3. Map over categories that actually contain medicines added by admin
     const summary = await Promise.all(
-      filteredCategories.map(async (cat) => {
+      validCatNames.map(async (rawCatName, index) => {
+        const catName = String(rawCatName).trim();
+        const catDoc = categoryMap.get(catName.toLowerCase());
+
         const totalMedicines = await Medicine.countDocuments({
-          category: cat.name,
+          category: catName,
           expiryDate: { $gte: today },
         });
 
+        if (totalMedicines === 0) return null;
+
         const inStockCount = await Medicine.countDocuments({
-          category: cat.name,
+          category: catName,
           stock: { $gt: 0 },
           expiryDate: { $gte: today },
         });
 
+        // Find a representative medicine image if category doesn't have an explicit image
+        let sampleImage = catDoc?.image ? sanitizeImageUrl(catDoc.image) : "";
+        if (!sampleImage || sampleImage === LOCAL_FALLBACK_IMAGE) {
+          const sampleMed = await Medicine.findOne({
+            category: catName,
+            image: { $exists: true, $ne: "" },
+            expiryDate: { $gte: today },
+          }).select("image");
+
+          if (sampleMed?.image) {
+            sampleImage = sanitizeImageUrl(sampleMed.image);
+          }
+        }
+
+        const slug =
+          catDoc?.slug ||
+          catName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "");
+
         return {
-          _id: cat._id,
-          id: cat._id,
-          name: cat.name,
-          title: cat.name,
-          slug: cat.slug,
-          image: sanitizeImageUrl(cat.image, LOCAL_FALLBACK_IMAGE),
-          description: cat.description || "",
+          _id: catDoc?._id || `cat-${index}`,
+          id: catDoc?._id || `cat-${index}`,
+          name: catName,
+          title: catName,
+          slug: slug || "medicines",
+          image: sampleImage || LOCAL_FALLBACK_IMAGE,
+          description:
+            catDoc?.description?.trim() ||
+            `Explore verified, authentic ${catName} medicines and healthcare essentials with fast delivery.`,
           totalMedicines,
           inStockCount,
           itemCount: totalMedicines,
-          highlight: inStockCount > 0 ? "Available" : "Out of stock",
-          color: "from-emerald-500 to-teal-500",
-          icon: "Grid3X3",
+          highlight: inStockCount > 0 ? "In Stock" : "Limited Stock",
+          color: colorPalettes[index % colorPalettes.length],
+          icon: iconList[index % iconList.length],
         };
       })
     );
 
+    const filteredSummary = summary.filter(Boolean);
+
+    const finalResult = search
+      ? filteredSummary.filter((cat) => {
+          const name = cat.name ? cat.name.toLowerCase() : "";
+          const description = cat.description ? cat.description.toLowerCase() : "";
+          return name.includes(search) || description.includes(search);
+        })
+      : filteredSummary;
+
     return res.status(200).json({
       success: true,
-      count: summary.length,
-      categories: summary,
+      count: finalResult.length,
+      categories: finalResult,
     });
   } catch (error) {
     console.error("Category summary error:", error);

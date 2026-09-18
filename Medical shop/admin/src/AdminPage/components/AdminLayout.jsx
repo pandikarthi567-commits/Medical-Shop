@@ -23,6 +23,7 @@ import {
   Navigation,
   Pill,
   Bike,
+  BadgePercent,
 } from "lucide-react";
 import { clearAdminSession, getAdminUser } from "../../utils/auth";
 
@@ -95,9 +96,9 @@ const navItems = [
     hasChevron: true,
   },
   {
-    name: "Settings",
+    name: "Offers & Promos",
     path: "/admin/offers",
-    icon: Settings,
+    icon: BadgePercent,
     hasChevron: true,
   },
 ];

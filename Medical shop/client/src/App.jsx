@@ -28,6 +28,8 @@ import MyOrdersPage from "./components/MyOrdersPage";
 import MyPrescriptionsPage from "./components/MyPrescriptionsPage";
 import ProfileOrderDetailsPage from "./components/ProfileOrderDetailsPage";
 
+import GlowCursor from "./components/GlowCursor";
+
 const ProtectedRoute = () => {
   const token = localStorage.getItem("token");
   return token ? <Outlet /> : <Navigate to="/login" replace />;
@@ -35,37 +37,47 @@ const ProtectedRoute = () => {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<MainLayout />}>
-          <Route path="/" element={<Landingpage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/products" element={<ProductsPage />} />
-          <Route path="/healthcare" element={<HealthcarePage />} />
-          <Route path="/categories" element={<CategoriesPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/offers" element={<OffersPage />} />
+    <>
+      <GlowCursor
+        primaryColor="#059669"
+        secondaryColor="#0284C7"
+        ringSize={28}
+        hoverRingSize={46}
+        dotSize={5}
+        showTrail={true}
+      />
+      <BrowserRouter>
+        <Routes>
+          <Route element={<MainLayout />}>
+            <Route path="/" element={<Landingpage />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/products" element={<ProductsPage />} />
+            <Route path="/healthcare" element={<HealthcarePage />} />
+            <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/offers" element={<OffersPage />} />
 
-          {/* Protected Routes - Accessible only when logged in */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/cart" element={<CartPage />} />
-            <Route path="/orders" element={<MyOrdersPage />} />
-            <Route path="/profile/orders" element={<MyOrdersPage />} />
-            <Route path="/profile/orders/:id" element={<ProfileOrderDetailsPage />} />
-            <Route path="/prescriptions" element={<MyPrescriptionsPage />} />
-            <Route path="/prescription" element={<MyPrescriptionsPage />} />
-            <Route path="/track-order" element={<TrackOrder />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/wishlist" element={<WishlistPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/payment-return" element={<PaymentReturnPage />} />
+            {/* Protected Routes - Accessible only when logged in */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/cart" element={<CartPage />} />
+              <Route path="/orders" element={<MyOrdersPage />} />
+              <Route path="/profile/orders" element={<MyOrdersPage />} />
+              <Route path="/profile/orders/:id" element={<ProfileOrderDetailsPage />} />
+              <Route path="/prescriptions" element={<MyPrescriptionsPage />} />
+              <Route path="/prescription" element={<MyPrescriptionsPage />} />
+              <Route path="/track-order" element={<TrackOrder />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/wishlist" element={<WishlistPage />} />
+              <Route path="/checkout" element={<CheckoutPage />} />
+              <Route path="/payment-return" element={<PaymentReturnPage />} />
+            </Route>
           </Route>
-        </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </>
   );
 }
 

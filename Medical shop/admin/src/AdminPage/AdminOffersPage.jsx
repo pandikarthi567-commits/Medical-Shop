@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BadgePercent,
@@ -15,6 +15,11 @@ import {
   X,
   Sparkles,
   ChevronRight,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  ArrowUpRight,
+  TrendingUp,
 } from "lucide-react";
 import API from "../api/axios";
 
@@ -26,27 +31,11 @@ const initialForm = {
   discountValue: "",
   minOrderAmount: "",
   maxDiscount: "",
-  validFrom: "",
-  validTill: "",
+  validFrom: new Date().toISOString().slice(0, 10),
+  validTill: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10),
   isActive: true,
-};
-
-const pageMotion = {
-  initial: { opacity: 0, y: 20, filter: "blur(4px)" },
-  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
-  exit: { opacity: 0, y: -16, filter: "blur(3px)" },
-};
-
-const cardMotion = {
-  initial: { opacity: 0, y: 18, scale: 0.98 },
-  animate: { opacity: 1, y: 0, scale: 1 },
-  exit: { opacity: 0, y: -14, scale: 0.96 },
-};
-
-const formMotion = {
-  hidden: { opacity: 0, y: -16, scale: 0.98 },
-  visible: { opacity: 1, y: 0, scale: 1 },
-  exit: { opacity: 0, y: -12, scale: 0.98 },
 };
 
 const formatDateInput = (date) => {
@@ -67,29 +56,13 @@ const formatDateDisplay = (date) => {
   });
 };
 
-const formatDiscountText = (offer) => {
-  if (offer.discountType === "percentage") {
-    return `${offer.discountValue}% OFF`;
-  }
-  return `₹${offer.discountValue} OFF`;
-};
-
 const isOfferExpired = (validTill) => {
   if (!validTill) return false;
   const today = new Date();
   const till = new Date(validTill);
   today.setHours(0, 0, 0, 0);
-  till.setHours(0, 0, 0, 0);
+  till.setHours(23, 59, 59, 999);
   return till < today;
-};
-
-const isOfferUpcoming = (validFrom) => {
-  if (!validFrom) return false;
-  const today = new Date();
-  const from = new Date(validFrom);
-  today.setHours(0, 0, 0, 0);
-  from.setHours(0, 0, 0, 0);
-  return from > today;
 };
 
 const isOfferRunning = (validFrom, validTill) => {
@@ -97,41 +70,36 @@ const isOfferRunning = (validFrom, validTill) => {
   const today = new Date();
   const from = new Date(validFrom);
   const till = new Date(validTill);
-  today.setHours(0, 0, 0, 0);
   from.setHours(0, 0, 0, 0);
-  till.setHours(0, 0, 0, 0);
+  till.setHours(23, 59, 59, 999);
   return today >= from && today <= till;
 };
 
 const AdminOffersPage = () => {
-  const formSectionRef = useRef(null);
-
   const [offers, setOffers] = useState([]);
   const [formData, setFormData] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [feedback, setFeedback] = useState({ type: "", text: "" });
 
   const fetchOffers = async (isRefresh = false) => {
     try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setFetching(true);
-      }
-
-      setError("");
+      if (isRefresh) setRefreshing(true);
+      else setFetching(true);
 
       const { data } = await API.get("/offers");
       setOffers(data?.offers || []);
     } catch (err) {
       console.error("Fetch offers error:", err);
-      setError(err?.response?.data?.message || "Failed to fetch offers");
+      setFeedback({
+        type: "error",
+        text: err?.response?.data?.message || "Failed to fetch offers",
+      });
     } finally {
       setFetching(false);
       setRefreshing(false);
@@ -145,152 +113,55 @@ const AdminOffersPage = () => {
   const filteredOffers = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
 
-    if (!query) return offers;
-
     return offers.filter((offer) => {
-      const searchableText = [
-        offer?.title,
-        offer?.description,
-        offer?.code,
-        offer?.discountType,
-      ]
-        .join(" ")
-        .toLowerCase();
+      const matchesSearch =
+        !query ||
+        offer?.title?.toLowerCase().includes(query) ||
+        offer?.code?.toLowerCase().includes(query) ||
+        offer?.description?.toLowerCase().includes(query);
 
-      return searchableText.includes(query);
+      if (!matchesSearch) return false;
+
+      if (statusFilter === "active") return offer.isActive && !isOfferExpired(offer.validTill);
+      if (statusFilter === "inactive") return !offer.isActive;
+      if (statusFilter === "expired") return isOfferExpired(offer.validTill);
+      if (statusFilter === "running") return isOfferRunning(offer.validFrom, offer.validTill) && offer.isActive;
+
+      return true;
     });
-  }, [offers, searchTerm]);
+  }, [offers, searchTerm, statusFilter]);
 
   const stats = useMemo(() => {
-    const active = offers.filter((offer) => offer.isActive).length;
-    const running = offers.filter((offer) =>
-      isOfferRunning(offer.validFrom, offer.validTill)
+    const total = offers.length;
+    const active = offers.filter(
+      (o) => o.isActive && !isOfferExpired(o.validTill)
     ).length;
-    const expired = offers.filter((offer) => isOfferExpired(offer.validTill)).length;
+    const running = offers.filter(
+      (o) => isOfferRunning(o.validFrom, o.validTill) && o.isActive
+    ).length;
+    const expired = offers.filter((o) => isOfferExpired(o.validTill)).length;
 
-    return {
-      total: offers.length,
-      active,
-      running,
-      expired,
-    };
+    return { total, active, running, expired };
   }, [offers]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-
     setFormData((prev) => ({
       ...prev,
       [name]:
         type === "checkbox"
           ? checked
           : name === "code"
-          ? value.toUpperCase()
+          ? value.toUpperCase().replace(/\s+/g, "")
           : value,
     }));
   };
 
-  const resetForm = () => {
-    setFormData(initialForm);
-    setEditingId(null);
-    setShowForm(false);
-    setError("");
-  };
-
-  const scrollToForm = () => {
-    setTimeout(() => {
-      formSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 100);
-  };
-
-  const openAddForm = () => {
+  const openAddModal = () => {
     setEditingId(null);
     setFormData(initialForm);
-    setMessage("");
-    setError("");
-    setShowForm(true);
-    scrollToForm();
-  };
-
-  const validateForm = () => {
-    if (!formData.title.trim()) return "Offer title is required";
-    if (!formData.code.trim()) return "Offer code is required";
-    if (!formData.discountType) return "Discount type is required";
-    if (formData.discountValue === "" || Number(formData.discountValue) < 0) {
-      return "Enter a valid discount value";
-    }
-    if (!formData.validFrom || !formData.validTill) {
-      return "Valid from and valid till are required";
-    }
-
-    const from = new Date(formData.validFrom);
-    const till = new Date(formData.validTill);
-
-    if (Number.isNaN(from.getTime()) || Number.isNaN(till.getTime())) {
-      return "Invalid date selected";
-    }
-
-    if (till < from) {
-      return "Valid till date cannot be earlier than valid from date";
-    }
-
-    if (Number(formData.minOrderAmount || 0) < 0) {
-      return "Minimum order amount cannot be negative";
-    }
-
-    if (Number(formData.maxDiscount || 0) < 0) {
-      return "Max discount cannot be negative";
-    }
-
-    return "";
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
-      setMessage("");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-      setMessage("");
-
-      const payload = {
-        ...formData,
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        code: formData.code.trim().toUpperCase(),
-        discountValue: Number(formData.discountValue),
-        minOrderAmount: Number(formData.minOrderAmount || 0),
-        maxDiscount: Number(formData.maxDiscount || 0),
-      };
-
-      if (editingId) {
-        const { data } = await API.put(`/offers/${editingId}`, payload);
-        setMessage(data?.message || "Offer updated successfully");
-      } else {
-        const { data } = await API.post("/offers", payload);
-        setMessage(data?.message || "Offer added successfully");
-      }
-
-      setFormData(initialForm);
-      setEditingId(null);
-      setShowForm(false);
-      fetchOffers();
-    } catch (err) {
-      console.error("Submit offer error:", err);
-      setError(err?.response?.data?.message || "Failed to save offer");
-    } finally {
-      setLoading(false);
-    }
+    setFeedback({ type: "", text: "" });
+    setShowModal(true);
   };
 
   const handleEdit = (offer) => {
@@ -307,524 +178,649 @@ const AdminOffersPage = () => {
       validTill: formatDateInput(offer.validTill),
       isActive: Boolean(offer.isActive),
     });
+    setFeedback({ type: "", text: "" });
+    setShowModal(true);
+  };
 
-    setMessage("");
-    setError("");
-    setShowForm(true);
-    scrollToForm();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!formData.title.trim()) {
+      setFeedback({ type: "error", text: "Offer title is required." });
+      return;
+    }
+    if (!formData.code.trim()) {
+      setFeedback({ type: "error", text: "Offer code is required." });
+      return;
+    }
+    if (formData.discountValue === "" || Number(formData.discountValue) <= 0) {
+      setFeedback({ type: "error", text: "Enter a valid positive discount value." });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setFeedback({ type: "", text: "" });
+
+      const payload = {
+        ...formData,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        code: formData.code.trim().toUpperCase(),
+        discountValue: Number(formData.discountValue),
+        minOrderAmount: Number(formData.minOrderAmount || 0),
+        maxDiscount: Number(formData.maxDiscount || 0),
+      };
+
+      if (editingId) {
+        const { data } = await API.put(`/offers/${editingId}`, payload);
+        setFeedback({
+          type: "success",
+          text: data?.message || "Offer updated successfully!",
+        });
+      } else {
+        const { data } = await API.post("/offers", payload);
+        setFeedback({
+          type: "success",
+          text: data?.message || "Offer created successfully!",
+        });
+      }
+
+      setShowModal(false);
+      fetchOffers();
+    } catch (err) {
+      console.error("Submit offer error:", err);
+      setFeedback({
+        type: "error",
+        text: err?.response?.data?.message || "Failed to save offer.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = async (id) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this offer?"
-    );
-    if (!confirmDelete) return;
+    if (!window.confirm("Are you sure you want to permanently delete this offer?")) {
+      return;
+    }
 
     try {
-      setError("");
-      setMessage("");
-
       const { data } = await API.delete(`/offers/${id}`);
-      setMessage(data?.message || "Offer deleted successfully");
-
-      if (editingId === id) {
-        resetForm();
-      }
-
-      setOffers((prev) => prev.filter((offer) => offer._id !== id));
+      setFeedback({
+        type: "success",
+        text: data?.message || "Offer deleted successfully!",
+      });
+      setOffers((prev) => prev.filter((o) => o._id !== id));
     } catch (err) {
       console.error("Delete offer error:", err);
-      setError(err?.response?.data?.message || "Failed to delete offer");
+      setFeedback({
+        type: "error",
+        text: err?.response?.data?.message || "Failed to delete offer",
+      });
+    }
+  };
+
+  const toggleOfferStatus = async (offer) => {
+    try {
+      const updatedStatus = !offer.isActive;
+      await API.put(`/offers/${offer._id}`, { isActive: updatedStatus });
+      setOffers((prev) =>
+        prev.map((o) => (o._id === offer._id ? { ...o, isActive: updatedStatus } : o))
+      );
+      setFeedback({
+        type: "success",
+        text: `Offer ${offer.code} ${updatedStatus ? "Activated" : "Deactivated"}.`,
+      });
+    } catch (err) {
+      console.error("Toggle status error:", err);
+      setFeedback({
+        type: "error",
+        text: "Failed to update offer status",
+      });
     }
   };
 
   return (
-    <motion.div
-      variants={pageMotion}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="mx-auto max-w-7xl space-y-6"
-    >
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-              <Sparkles size={14} />
-              Offer Dashboard
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
-              Admin Offer Management
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Create, update, search, and manage all promotional offers.
-            </p>
+    <div className="space-y-6">
+      {/* Header Banner matching Medicare Admin Style */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl bg-linear-to-r from-[#e6f7f2] via-[#eef9f5] to-white border border-[#cbeee2] p-5 sm:p-6 shadow-2xs">
+        <div>
+          <div className="flex items-center gap-2 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-1">
+            <BadgePercent size={16} className="text-emerald-600" />
+            <span>Marketing & Promotions</span>
           </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative w-full sm:w-80">
-              <Search
-                size={18}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-              <input
-                type="text"
-                placeholder="Search by title, code, type..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 pl-10 pr-4 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white"
-              />
-            </div>
-
-            <button
-              onClick={openAddForm}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700"
-            >
-              <Plus size={16} />
-              Add Offer
-            </button>
-
-            <button
-              onClick={() => fetchOffers(true)}
-              disabled={refreshing}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-            >
-              <RefreshCcw size={16} className={refreshing ? "animate-spin" : ""} />
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {message && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-green-200 bg-green-50 p-3 text-green-700"
-        >
-          {message}
-        </motion.div>
-      )}
-
-      {error && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-700"
-        >
-          {error}
-        </motion.div>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Total Offers</p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900">{stats.total}</h2>
-            </div>
-            <div className="rounded-xl bg-blue-50 p-3 text-blue-700">
-              <Tag size={20} />
-            </div>
-          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            Offers & Promo Codes
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-600 mt-1">
+            Create and manage promotional discounts that show up directly on the customer store.
+          </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Active Offers</p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900">{stats.active}</h2>
-            </div>
-            <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700">
-              <TicketPercent size={20} />
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Running Now</p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900">{stats.running}</h2>
-            </div>
-            <div className="rounded-xl bg-amber-50 p-3 text-amber-700">
-              <CalendarDays size={20} />
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Expired Offers</p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900">{stats.expired}</h2>
-            </div>
-            <div className="rounded-xl bg-red-50 p-3 text-red-700">
-              <CircleDollarSign size={20} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {showForm && (
-          <motion.form
-            ref={formSectionRef}
-            key="offer-form"
-            variants={formMotion}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            transition={{ duration: 0.3 }}
-            onSubmit={handleSubmit}
-            className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => fetchOffers(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold shadow-2xs transition cursor-pointer disabled:opacity-50"
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">
-                  {editingId ? "Edit Offer" : "Add New Offer"}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {editingId
-                    ? "Update the selected offer details."
-                    : "Fill the form and create a new promotional offer."}
-                </p>
-              </div>
+            <RefreshCcw size={15} className={refreshing ? "animate-spin text-emerald-600" : ""} />
+            <span>{refreshing ? "Refreshing..." : "Refresh"}</span>
+          </button>
 
-              <button
-                type="button"
-                onClick={resetForm}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                <X size={16} />
-                Close
-              </button>
-            </div>
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <Plus size={17} />
+            <span>Add New Offer</span>
+          </button>
+        </div>
+      </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Offer Title</label>
-              <input
-                type="text"
-                name="title"
-                placeholder="Enter offer title"
-                value={formData.title}
-                onChange={handleChange}
-                className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-500"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Description</label>
-              <textarea
-                name="description"
-                placeholder="Enter offer description"
-                value={formData.description}
-                onChange={handleChange}
-                className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-500"
-                rows="4"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Offer Code</label>
-                <input
-                  type="text"
-                  name="code"
-                  placeholder="SAVE20"
-                  value={formData.code}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-300 p-3 uppercase outline-none focus:border-blue-500"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Discount Type</label>
-                <select
-                  name="discountType"
-                  value={formData.discountType}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-500"
-                  required
-                >
-                  <option value="percentage">Percentage</option>
-                  <option value="flat">Flat</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Discount Value</label>
-                <input
-                  type="number"
-                  name="discountValue"
-                  placeholder="Enter discount value"
-                  value={formData.discountValue}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-500"
-                  min="0"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  Minimum Order Amount
-                </label>
-                <input
-                  type="number"
-                  name="minOrderAmount"
-                  placeholder="Enter minimum order amount"
-                  value={formData.minOrderAmount}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-500"
-                  min="0"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-slate-700">Maximum Discount</label>
-                <input
-                  type="number"
-                  name="maxDiscount"
-                  placeholder="Enter max discount"
-                  value={formData.maxDiscount}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-500"
-                  min="0"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Valid From</label>
-                <input
-                  type="date"
-                  name="validFrom"
-                  value={formData.validFrom}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-500"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Valid Till</label>
-                <input
-                  type="date"
-                  name="validTill"
-                  value={formData.validTill}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-500"
-                  required
-                />
-              </div>
-            </div>
-
-            <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <input
-                type="checkbox"
-                name="isActive"
-                checked={formData.isActive}
-                onChange={handleChange}
-                className="h-4 w-4"
-              />
-              <span className="text-sm font-medium text-slate-700">Active offer</span>
-            </label>
-
-            <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
-              >
-                {editingId ? <Pencil size={16} /> : <Plus size={16} />}
-                {loading
-                  ? "Saving..."
-                  : editingId
-                  ? "Update Offer"
-                  : "Add Offer"}
-              </button>
-
-              <button
-                type="button"
-                onClick={resetForm}
-                className="rounded-xl bg-slate-500 px-5 py-3 text-white transition-colors hover:bg-slate-600"
-              >
-                Cancel
-              </button>
-            </div>
-          </motion.form>
-        )}
-      </AnimatePresence>
-
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08, duration: 0.35 }}
-        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-      >
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">Offer Cards</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Each offer is displayed in detailed card format.
-            </p>
+      {/* Feedback Alert */}
+      {feedback.text && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`flex items-center justify-between p-4 rounded-xl border text-xs sm:text-sm font-semibold ${
+            feedback.type === "error"
+              ? "bg-rose-50 border-rose-200 text-rose-800"
+              : "bg-emerald-50 border-emerald-200 text-emerald-800"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {feedback.type === "error" ? (
+              <AlertCircle size={18} className="text-rose-600 shrink-0" />
+            ) : (
+              <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+            )}
+            <span>{feedback.text}</span>
           </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">
-            Showing {filteredOffers.length}
-          </span>
+          <button
+            onClick={() => setFeedback({ type: "", text: "" })}
+            className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+          >
+            <X size={16} />
+          </button>
+        </motion.div>
+      )}
+
+      {/* Stats Cards Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+        <div className="rounded-2xl border border-[#e2efe8] bg-white p-4 sm:p-5 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Total Offers
+            </span>
+            <div className="h-9 w-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold">
+              <Tag size={18} />
+            </div>
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
+            {stats.total}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">All created coupons</p>
         </div>
 
-        {fetching ? (
-          <p className="text-slate-500">Loading offers...</p>
-        ) : filteredOffers.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
-            No offers found.
+        <div className="rounded-2xl border border-emerald-100 bg-white p-4 sm:p-5 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
+              Active Offers
+            </span>
+            <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+              <TicketPercent size={18} />
+            </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
-            <AnimatePresence mode="popLayout">
-              {filteredOffers.map((offer) => {
-                const expired = isOfferExpired(offer.validTill);
-                const upcoming = isOfferUpcoming(offer.validFrom);
-                const running = isOfferRunning(offer.validFrom, offer.validTill);
+          <div className="text-2xl sm:text-3xl font-black text-emerald-600 mt-2">
+            {stats.active}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">Visible to customers</p>
+        </div>
 
-                return (
-                  <motion.div
-                    key={offer._id}
-                    layout
-                    variants={cardMotion}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    transition={{ duration: 0.3 }}
-                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-                  >
-                    <div className="border-b border-slate-100 bg-slate-50 p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="rounded-2xl border border-cyan-100 bg-white p-4 sm:p-5 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-cyan-700 uppercase tracking-wider">
+              Running Now
+            </span>
+            <div className="h-9 w-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold">
+              <Clock size={18} />
+            </div>
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-cyan-700 mt-2">
+            {stats.running}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">Currently valid date</p>
+        </div>
+
+        <div className="rounded-2xl border border-rose-100 bg-white p-4 sm:p-5 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-rose-700 uppercase tracking-wider">
+              Expired
+            </span>
+            <div className="h-9 w-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+              <CircleDollarSign size={18} />
+            </div>
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-rose-600 mt-2">
+            {stats.expired}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-0.5">Past validity date</p>
+        </div>
+      </div>
+
+      {/* Search & Filter Bar */}
+      <div className="rounded-2xl border border-[#e5f0eb] bg-white p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by title, coupon code, or details..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition"
+          />
+        </div>
+
+        {/* Filter Pills */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[
+            { id: "all", label: "All" },
+            { id: "active", label: "Active" },
+            { id: "running", label: "Running" },
+            { id: "expired", label: "Expired" },
+            { id: "inactive", label: "Disabled" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                statusFilter === tab.id
+                  ? "bg-emerald-600 text-white shadow-2xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Offers Cards Grid */}
+      {fetching ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-8">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="rounded-2xl border border-slate-200 bg-white p-6 animate-pulse space-y-4">
+              <div className="h-6 w-1/3 bg-slate-200 rounded-md" />
+              <div className="h-8 w-3/4 bg-slate-200 rounded-lg" />
+              <div className="h-16 bg-slate-100 rounded-xl" />
+            </div>
+          ))}
+        </div>
+      ) : filteredOffers.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center">
+          <div className="h-14 w-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+            <Tag size={26} />
+          </div>
+          <h3 className="text-base font-bold text-slate-900">No promotional offers found</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+            {searchTerm || statusFilter !== "all"
+              ? "Try adjusting your search query or filter."
+              : "Click the 'Add New Offer' button above to create your first discount promo code."}
+          </p>
+          <button
+            onClick={openAddModal}
+            className="mt-4 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
+          >
+            Create Offer Now
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          <AnimatePresence mode="popLayout">
+            {filteredOffers.map((offer) => {
+              const expired = isOfferExpired(offer.validTill);
+              const running = isOfferRunning(offer.validFrom, offer.validTill);
+
+              return (
+                <motion.div
+                  key={offer._id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="rounded-2xl border border-[#e5f0eb] bg-white overflow-hidden shadow-2xs hover:shadow-md transition flex flex-col justify-between"
+                >
+                  {/* Top Color Banner */}
+                  <div className="p-4 bg-linear-to-r from-emerald-600 to-teal-600 text-white">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-[11px] font-black uppercase tracking-wider">
+                        {offer.discountType === "percentage"
+                          ? `${offer.discountValue}% OFF`
+                          : `₹${offer.discountValue} FLAT OFF`}
+                      </span>
+
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
+                            offer.isActive && !expired
+                              ? "bg-emerald-400 text-slate-950"
+                              : expired
+                              ? "bg-rose-500 text-white"
+                              : "bg-slate-700 text-white"
+                          }`}
+                        >
+                          {expired ? "Expired" : offer.isActive ? "Active" : "Disabled"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <h3 className="text-base sm:text-lg font-black mt-2.5 truncate">
+                      {offer.title}
+                    </h3>
+                  </div>
+
+                  {/* Body Content */}
+                  <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+                    <div>
+                      <p className="text-xs text-slate-600 line-clamp-2">
+                        {offer.description || "No description provided."}
+                      </p>
+
+                      {/* Coupon Code Block */}
+                      <div className="mt-3.5 p-3 rounded-xl bg-[#f4faf8] border border-dashed border-emerald-300 flex items-center justify-between">
                         <div>
-                          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
-                            <BadgePercent size={14} />
-                            {formatDiscountText(offer)}
-                          </div>
-                          <h3 className="text-lg font-bold text-slate-900">
-                            {offer.title}
-                          </h3>
-                          <p className="mt-1 text-sm text-slate-600">
-                            {offer.description || "No description provided."}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-medium ${
-                              offer.isActive
-                                ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {offer.isActive ? "Active" : "Inactive"}
+                          <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                            Promo Code
                           </span>
+                          <span className="text-base font-black text-slate-900 tracking-wider">
+                            {offer.code}
+                          </span>
+                        </div>
 
-                          {running && (
-                            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
-                              Running
-                            </span>
-                          )}
+                        <button
+                          onClick={() => toggleOfferStatus(offer)}
+                          className={`text-xs font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                            offer.isActive
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                              : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                          }`}
+                        >
+                          {offer.isActive ? "Enabled" : "Disabled"}
+                        </button>
+                      </div>
 
-                          {upcoming && (
-                            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
-                              Upcoming
-                            </span>
-                          )}
+                      {/* Details Grid */}
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                          <span className="text-slate-400 block font-medium">Min Order</span>
+                          <span className="font-bold text-slate-800">
+                            {offer.minOrderAmount > 0 ? `₹${offer.minOrderAmount}` : "None"}
+                          </span>
+                        </div>
 
-                          {expired && (
-                            <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
-                              Expired
-                            </span>
-                          )}
+                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                          <span className="text-slate-400 block font-medium">Max Discount</span>
+                          <span className="font-bold text-slate-800">
+                            {offer.maxDiscount > 0 ? `₹${offer.maxDiscount}` : "Unlimited"}
+                          </span>
+                        </div>
+
+                        <div className="col-span-2 p-2 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between">
+                          <span className="text-slate-400 font-medium">Validity Period</span>
+                          <span className="font-bold text-slate-800">
+                            {formatDateDisplay(offer.validFrom)} - {formatDateDisplay(offer.validTill)}
+                          </span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-slate-500">
-                          Offer Code
-                        </p>
-                        <p className="mt-1 text-base font-semibold text-slate-900">
-                          {offer.code}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-slate-500">
-                          Discount Type
-                        </p>
-                        <p className="mt-1 text-base font-semibold capitalize text-slate-900">
-                          {offer.discountType}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-slate-500">
-                          Minimum Order
-                        </p>
-                        <p className="mt-1 text-base font-semibold text-slate-900">
-                          ₹{Number(offer.minOrderAmount || 0)}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-slate-500">
-                          Maximum Discount
-                        </p>
-                        <p className="mt-1 text-base font-semibold text-slate-900">
-                          ₹{Number(offer.maxDiscount || 0)}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2">
-                        <p className="text-xs uppercase tracking-wide text-slate-500">
-                          Validity Period
-                        </p>
-                        <p className="mt-1 flex flex-wrap items-center text-base font-semibold text-slate-900">
-                          <span>{formatDateDisplay(offer.validFrom)}</span>
-                          <ChevronRight className="mx-1" size={14} />
-                          <span>{formatDateDisplay(offer.validTill)}</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-3 border-t border-slate-100 p-4">
+                    {/* Action Buttons */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
                       <button
                         onClick={() => handleEdit(offer)}
-                        className="inline-flex items-center gap-2 rounded-xl bg-yellow-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-yellow-600"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer"
                       >
-                        <Pencil size={16} />
-                        Edit
+                        <Pencil size={13} />
+                        <span>Edit</span>
                       </button>
 
                       <button
                         onClick={() => handleDelete(offer._id)}
-                        className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 text-xs font-semibold transition cursor-pointer"
                       >
-                        <Trash2 size={16} />
-                        Delete
+                        <Trash2 size={13} />
+                        <span>Delete</span>
                       </button>
                     </div>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Add / Edit Offer Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="w-full max-w-xl bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-linear-to-r from-emerald-50/50 to-white">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                    <Tag size={16} />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black text-slate-900">
+                      {editingId ? "Edit Promotional Offer" : "Create New Offer"}
+                    </h2>
+                    <p className="text-[11px] text-slate-500">
+                      Configure promo code, discounts, and expiration.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Form Content */}
+              <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Offer Title */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Offer Title *
+                    </label>
+                    <input
+                      type="text"
+                      name="title"
+                      placeholder="e.g. Mega Summer Health Sale"
+                      value={formData.title}
+                      onChange={handleChange}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition"
+                      required
+                    />
+                  </div>
+
+                  {/* Offer Code */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Coupon Code *
+                    </label>
+                    <input
+                      type="text"
+                      name="code"
+                      placeholder="e.g. MEDICARE25"
+                      value={formData.code}
+                      onChange={handleChange}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition"
+                      required
+                    />
+                  </div>
+
+                  {/* Discount Type */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Discount Type *
+                    </label>
+                    <select
+                      name="discountType"
+                      value={formData.discountType}
+                      onChange={handleChange}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition cursor-pointer"
+                    >
+                      <option value="percentage">Percentage Discount (%)</option>
+                      <option value="flat">Flat Amount Discount (₹)</option>
+                    </select>
+                  </div>
+
+                  {/* Discount Value */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Discount Value ({formData.discountType === "percentage" ? "%" : "₹"}) *
+                    </label>
+                    <input
+                      type="number"
+                      name="discountValue"
+                      placeholder={formData.discountType === "percentage" ? "25" : "150"}
+                      value={formData.discountValue}
+                      onChange={handleChange}
+                      min="1"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition"
+                      required
+                    />
+                  </div>
+
+                  {/* Min Order Amount */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Min Order Amount (₹)
+                    </label>
+                    <input
+                      type="number"
+                      name="minOrderAmount"
+                      placeholder="e.g. 500 (0 for no limit)"
+                      value={formData.minOrderAmount}
+                      onChange={handleChange}
+                      min="0"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition"
+                    />
+                  </div>
+
+                  {/* Max Discount */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Max Discount Cap (₹)
+                    </label>
+                    <input
+                      type="number"
+                      name="maxDiscount"
+                      placeholder="e.g. 300 (0 for no cap)"
+                      value={formData.maxDiscount}
+                      onChange={handleChange}
+                      min="0"
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition"
+                    />
+                  </div>
+
+                  {/* Active Toggle */}
+                  <div className="flex items-center gap-3 pt-6">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="isActive"
+                        checked={formData.isActive}
+                        onChange={handleChange}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      <span className="ml-3 text-xs font-bold text-slate-800">
+                        {formData.isActive ? "Offer is Active" : "Offer is Disabled"}
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Valid From */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Valid From Date *
+                    </label>
+                    <input
+                      type="date"
+                      name="validFrom"
+                      value={formData.validFrom}
+                      onChange={handleChange}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition"
+                      required
+                    />
+                  </div>
+
+                  {/* Valid Till */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Valid Till Date *
+                    </label>
+                    <input
+                      type="date"
+                      name="validTill"
+                      value={formData.validTill}
+                      onChange={handleChange}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition"
+                      required
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Description / Terms
+                    </label>
+                    <textarea
+                      name="description"
+                      rows="3"
+                      placeholder="e.g. Valid on all prescription and OTC medicines above ₹500."
+                      value={formData.description}
+                      onChange={handleChange}
+                      className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-hidden transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Modal Actions */}
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs sm:text-sm font-semibold hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/20 transition cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? "Saving..." : editingId ? "Save Changes" : "Create Offer"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </div>
         )}
-      </motion.div>
-    </motion.div>
+      </AnimatePresence>
+    </div>
   );
 };
 

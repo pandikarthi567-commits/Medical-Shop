@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
-import React, { useState } from "react";
-import { motion } from "framer-motion";
+import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   FileText,
@@ -15,12 +15,24 @@ import {
   Sparkles,
   Activity,
   Award,
+  Loader2,
+  ChevronRight,
+  Tag,
+  Package,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import api from "../../api/axios";
+import { getImageUrl } from "../../utils/imageUrl";
 
 const Hero = () => {
   const navigate = useNavigate();
+  const searchContainerRef = useRef(null);
+
   const [searchTerm, setSearchTerm] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
 
   const quickSearches = [
     "Paracetamol",
@@ -30,12 +42,92 @@ const Hero = () => {
     "Pain Relief",
   ];
 
+  // Debounced Live Autocomplete Search when typing 2, 3, or 4+ characters
+  useEffect(() => {
+    const query = searchTerm.trim();
+
+    if (query.length < 2) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      setLoadingSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setLoadingSuggestions(true);
+        const { data } = await api.get(
+          `/medicines?search=${encodeURIComponent(query)}&limit=6`
+        );
+
+        const results = data?.medicines || [];
+        setSuggestions(results);
+        setShowDropdown(true);
+        setSelectedIndex(-1);
+      } catch (err) {
+        console.error("Autocomplete search error:", err);
+        setSuggestions([]);
+      } finally {
+        setLoadingSuggestions(false);
+      }
+    }, 220);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(e.target)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const handleSearch = (keywordToSearch) => {
     const query = (keywordToSearch !== undefined ? keywordToSearch : searchTerm).trim();
+    setShowDropdown(false);
     if (query) {
       navigate(`/products?search=${encodeURIComponent(query)}`);
     } else {
       navigate("/products");
+    }
+  };
+
+  const handleSelectMedicine = (med) => {
+    setShowDropdown(false);
+    if (med?.name) {
+      navigate(`/products?search=${encodeURIComponent(med.name)}`);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (!showDropdown || suggestions.length === 0) {
+      if (e.key === "Enter") handleSearch();
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+        handleSelectMedicine(suggestions[selectedIndex]);
+      } else {
+        handleSearch();
+      }
+    } else if (e.key === "Escape") {
+      setShowDropdown(false);
     }
   };
 
@@ -58,7 +150,7 @@ const Hero = () => {
 
       <div className="relative max-w-7xl 2xl:max-w-400 mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-12 gap-10 lg:gap-8 xl:gap-12 items-center">
-          {/* Left Column - Main Copy & Actions (Col 7) */}
+          {/* Left Column - Main Copy & Search Bar (Col 7) */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -91,8 +183,8 @@ const Hero = () => {
               Order authentic prescription drugs, daily vitamins, baby essentials, and surgical devices. Verified by licensed pharmacists with 24/7 care.
             </p>
 
-            {/* Integrated Search Box with Instant Suggestions */}
-            <div className="mt-7 sm:mt-8 max-w-2xl">
+            {/* Integrated Search Box with Instant Live Autocomplete Dropdown */}
+            <div ref={searchContainerRef} className="relative mt-7 sm:mt-8 max-w-2xl z-30">
               <div className="relative flex items-center rounded-2xl bg-white p-2 shadow-lg shadow-emerald-950/5 border border-slate-200/90 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/15 transition-all">
                 <Search className="w-5 h-5 ml-3 text-slate-400 shrink-0" />
                 <input
@@ -100,19 +192,170 @@ const Hero = () => {
                   placeholder="Search medicines, ailments, devices, or brands..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  onFocus={() => {
+                    if (searchTerm.trim().length >= 2 && suggestions.length > 0) {
+                      setShowDropdown(true);
+                    }
+                  }}
+                  onKeyDown={handleKeyDown}
                   className="w-full px-3 py-2 text-sm sm:text-base outline-none text-slate-800 placeholder:text-slate-400 bg-transparent min-w-0"
                 />
+
+                {loadingSuggestions && (
+                  <Loader2 className="w-4 h-4 text-emerald-600 animate-spin mr-2 shrink-0" />
+                )}
+
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => handleSearch()}
-                  className="px-5 sm:px-7 py-3 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-sm shadow-md transition shrink-0 flex items-center gap-1.5"
+                  className="px-5 sm:px-7 py-3 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-sm shadow-md transition shrink-0 flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>Search</span>
                   <ArrowRight size={15} />
                 </motion.button>
               </div>
+
+              {/* Floating Live Autocomplete Dropdown */}
+              <AnimatePresence>
+                {showDropdown && searchTerm.trim().length >= 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                    transition={{ duration: 0.18 }}
+                    className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden z-50 divide-y divide-slate-100"
+                  >
+                    {/* Header */}
+                    <div className="px-4 py-2.5 bg-slate-50 flex items-center justify-between text-xs text-slate-500 font-semibold">
+                      <div className="flex items-center gap-1.5 text-emerald-800">
+                        <Pill size={13} className="text-emerald-600" />
+                        <span>Matching Medicines ({suggestions.length})</span>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        Press ↑ ↓ to navigate, ↵ to select
+                      </span>
+                    </div>
+
+                    {/* Results List */}
+                    {loadingSuggestions && suggestions.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
+                        <span>Searching authentic medicines...</span>
+                      </div>
+                    ) : suggestions.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-500">
+                        <p className="font-semibold text-slate-700">
+                          No direct medicine matches found for "{searchTerm}"
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          Try searching by generic name (e.g. Paracetamol, Dolo, Cetirizine)
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-h-72 overflow-y-auto divide-y divide-slate-50 py-1">
+                        {suggestions.map((med, index) => {
+                          const isSelected = selectedIndex === index;
+                          const hasDiscount =
+                            Number(med?.oldPrice) > Number(med?.price);
+                          const isOutOfStock = Number(med?.stock || 0) <= 0;
+
+                          return (
+                            <div
+                              key={med._id || index}
+                              onClick={() => handleSelectMedicine(med)}
+                              onMouseEnter={() => setSelectedIndex(index)}
+                              className={`px-4 py-3 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                                isSelected
+                                  ? "bg-emerald-50/80 text-emerald-950"
+                                  : "hover:bg-slate-50/90 text-slate-800"
+                              }`}
+                            >
+                              {/* Left Thumbnail & Info */}
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/80 overflow-hidden flex items-center justify-center shrink-0">
+                                  {med.image ? (
+                                    <img
+                                      src={getImageUrl(med.image)}
+                                      alt={med.name}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.target.style.display = "none";
+                                        e.target.nextSibling.style.display = "block";
+                                      }}
+                                    />
+                                  ) : null}
+                                  <Pill
+                                    size={18}
+                                    className="text-emerald-600"
+                                    style={{
+                                      display: med.image ? "none" : "block",
+                                    }}
+                                  />
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                                      {med.name}
+                                    </h4>
+                                    {med.category && (
+                                      <span className="hidden sm:inline-block px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] font-semibold text-emerald-700 truncate">
+                                        {typeof med.category === "object"
+                                          ? med.category.name
+                                          : med.category}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                    {med.brand || med.description || "Verified Pharmacy Item"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Right Price & Stock */}
+                              <div className="text-right shrink-0">
+                                <div className="flex items-baseline gap-1.5 justify-end">
+                                  <span className="text-xs sm:text-sm font-extrabold text-emerald-700">
+                                    ₹{med.price}
+                                  </span>
+                                  {hasDiscount && (
+                                    <span className="text-[10px] text-slate-400 line-through">
+                                      ₹{med.oldPrice}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <span
+                                  className={`inline-block text-[10px] font-bold ${
+                                    isOutOfStock
+                                      ? "text-rose-500"
+                                      : "text-emerald-600"
+                                  }`}
+                                >
+                                  {isOutOfStock ? "Out of Stock" : "In Stock"}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Footer - Search all */}
+                    <div
+                      onClick={() => handleSearch()}
+                      className="px-4 py-2.5 bg-slate-50 hover:bg-emerald-50 text-xs font-bold text-emerald-700 flex items-center justify-between cursor-pointer transition-colors"
+                    >
+                      <span>
+                        View all search results for "
+                        <strong className="text-slate-900">{searchTerm}</strong>"
+                      </span>
+                      <ChevronRight size={14} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Quick search tags */}
               <div className="flex items-center gap-2 mt-3 flex-wrap text-xs text-slate-500">
@@ -124,7 +367,7 @@ const Hero = () => {
                       setSearchTerm(tag);
                       handleSearch(tag);
                     }}
-                    className="px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 transition border border-slate-200/60 font-medium"
+                    className="px-2.5 py-1 rounded-lg bg-slate-100/90 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 transition border border-slate-200/60 font-medium cursor-pointer"
                   >
                     {tag}
                   </button>
@@ -138,7 +381,7 @@ const Hero = () => {
                 <motion.button
                   whileHover={{ scale: 1.03, y: -2 }}
                   whileTap={{ scale: 0.97 }}
-                  className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20 transition"
+                  className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20 transition cursor-pointer"
                 >
                   <Pill size={18} className="text-emerald-400" />
                   <span>Order Medicines</span>
@@ -150,7 +393,7 @@ const Hero = () => {
                 whileHover={{ scale: 1.03, y: -2 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => navigate("/prescription")}
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-white hover:bg-emerald-50/50 border-2 border-emerald-500/40 text-emerald-800 font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition"
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-white hover:bg-emerald-50/50 border-2 border-emerald-500/40 text-emerald-800 font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
               >
                 <FileText size={18} className="text-emerald-600" />
                 <span>Upload Prescription</span>
