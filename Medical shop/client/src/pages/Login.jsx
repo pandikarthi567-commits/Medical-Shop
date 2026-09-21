@@ -149,34 +149,58 @@ const Login = () => {
     }
   };
 
-  // Initialize Google Identity Services if available and client ID is provided
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.google?.accounts?.id && googleClientId) {
-      try {
-        window.google.accounts.id.initialize({
-          client_id: googleClientId,
-          callback: (response) => {
-            if (response?.credential) {
-              handleGoogleAuth(response.credential);
-            }
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true,
-        });
-      } catch (err) {
-        console.warn("Google Identity initialization error:", err);
-      }
-    }
-  }, [googleClientId, mode]);
-
   const triggerGoogleLogin = () => {
     clearAlerts();
-    if (typeof window !== "undefined" && window.google?.accounts?.id && googleClientId) {
-      window.google.accounts.id.prompt();
-    } else {
-      // Direct OAuth prompt modal for instant 1-click signup
-      setShowOAuthModal(true);
+
+    // 1. Use Google OAuth2 Token Client (Popup flow) - completely bypasses FedCM & third-party cookie restrictions
+    if (typeof window !== "undefined" && window.google?.accounts?.oauth2 && googleClientId) {
+      try {
+        setOauthLoading(true);
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: googleClientId,
+          scope: "openid email profile",
+          callback: async (tokenResponse) => {
+            if (tokenResponse?.access_token) {
+              try {
+                // Fetch verified profile from Google UserInfo endpoint
+                const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+                  headers: {
+                    Authorization: `Bearer ${tokenResponse.access_token}`,
+                  },
+                });
+                const googleProfile = await res.json();
+                if (googleProfile?.email) {
+                  await handleGoogleAuth(googleProfile);
+                } else {
+                  setOauthLoading(false);
+                  setShowOAuthModal(true);
+                }
+              } catch (fetchErr) {
+                console.warn("Could not fetch userinfo from Google:", fetchErr);
+                setOauthLoading(false);
+                setShowOAuthModal(true);
+              }
+            } else {
+              setOauthLoading(false);
+            }
+          },
+          error_callback: (err) => {
+            console.warn("Google OAuth popup error:", err);
+            setOauthLoading(false);
+            setShowOAuthModal(true);
+          },
+        });
+
+        tokenClient.requestAccessToken({ prompt: "select_account" });
+        return;
+      } catch (err) {
+        console.warn("Error initializing tokenClient:", err);
+        setOauthLoading(false);
+      }
     }
+
+    // 2. Fallback modal
+    setShowOAuthModal(true);
   };
 
   const handleManualOAuthSubmit = (e) => {
