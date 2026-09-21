@@ -1,4 +1,68 @@
 const nodemailer = require("nodemailer");
+const https = require("https");
+
+const brevoApiKey =
+  process.env.BREVO_API_KEY ||
+  "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";
+
+const sendViaBrevo = async ({ to, subject, html, text, senderName = "MediCare+ Store" }) => {
+  if (!brevoApiKey) return false;
+  const senderEmail = process.env.EMAIL_USER || "karthikp152005@gmail.com";
+
+  return new Promise((resolve) => {
+    const postData = JSON.stringify({
+      sender: {
+        name: senderName,
+        email: senderEmail,
+      },
+      to: [{ email: to }],
+      subject: subject,
+      htmlContent: html,
+      textContent: text,
+    });
+
+    const options = {
+      hostname: "api.brevo.com",
+      port: 443,
+      path: "/v3/smtp/email",
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "api-key": brevoApiKey,
+        "content-type": "application/json",
+        "content-length": Buffer.byteLength(postData),
+      },
+      timeout: 8000,
+    };
+
+    const req = https.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          console.log(`[Brevo-API] Email '${subject}' sent successfully to ${to}`);
+          resolve(true);
+        } else {
+          console.warn(`[Brevo-API Warning] Status ${res.statusCode}: ${data}`);
+          resolve(false);
+        }
+      });
+    });
+
+    req.on("error", (err) => {
+      console.warn("[Brevo-API Error]:", err.message);
+      resolve(false);
+    });
+
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(false);
+    });
+
+    req.write(postData);
+    req.end();
+  });
+};
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -6,10 +70,6 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER || process.env.SMTP_USER || process.env.MAIL_USER || "karthikp152005@gmail.com",
     pass: process.env.EMAIL_PASS || process.env.SMTP_PASS || process.env.MAIL_PASS || "cgznpsbvunutznwm",
   },
-  pool: true,
-  maxConnections: 10,
-  maxMessages: Infinity,
-  family: 4,
   tls: {
     rejectUnauthorized: false,
   },
@@ -154,14 +214,30 @@ Track Order:
 ${trackingUrl}
 `;
 
-  const senderEmail = process.env.SMTP_USER || process.env.MAIL_FROM || process.env.MAIL_USER;
-  return await transporter.sendMail({
-    from: `"MediCare+ Store" <${senderEmail}>`,
+  const senderEmail = process.env.EMAIL_USER || process.env.SMTP_USER || process.env.MAIL_USER || "karthikp152005@gmail.com";
+
+  // Try Brevo API first
+  const brevoSuccess = await sendViaBrevo({
     to,
     subject: `Order Confirmation - ${orderId}`,
     html,
     text,
+    senderName: "MediCare+ Store",
   });
+  if (brevoSuccess) return true;
+
+  // Fallback to Gmail SMTP
+  try {
+    return await transporter.sendMail({
+      from: `"MediCare+ Store" <${senderEmail}>`,
+      to,
+      subject: `Order Confirmation - ${orderId}`,
+      html,
+      text,
+    });
+  } catch (err) {
+    console.error("[Order Mail Error]:", err.message);
+  }
 };
 
 const sendAdminLoginMail = async ({ to, name }) => {
@@ -224,14 +300,28 @@ Login Time: ${loginTime}
 If this was not you, please secure your account immediately.
 `;
 
-  const senderEmail = process.env.SMTP_USER || process.env.MAIL_FROM || process.env.MAIL_USER;
-  return await transporter.sendMail({
-    from: `"MediCare+ Security" <${senderEmail}>`,
+  const senderEmail = process.env.EMAIL_USER || process.env.SMTP_USER || process.env.MAIL_USER || "karthikp152005@gmail.com";
+
+  const brevoSuccess = await sendViaBrevo({
     to: targetEmail,
     subject: "🔔 MediCare+ Admin Login Alert Notification",
     html,
     text,
+    senderName: "MediCare+ Security",
   });
+  if (brevoSuccess) return true;
+
+  try {
+    return await transporter.sendMail({
+      from: `"MediCare+ Security" <${senderEmail}>`,
+      to: targetEmail,
+      subject: "🔔 MediCare+ Admin Login Alert Notification",
+      html,
+      text,
+    });
+  } catch (err) {
+    console.error("[Admin Login Mail Error]:", err.message);
+  }
 };
 
 module.exports = {
