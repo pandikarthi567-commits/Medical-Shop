@@ -14,10 +14,12 @@ import {
   CheckCircle2,
   AlertCircle,
   KeyRound,
-  RotateCcw,
   HeartPulse,
   Truck,
   MapPin,
+  Send,
+  Loader2,
+  Check,
 } from "lucide-react";
 import api from "../api/axios";
 
@@ -50,7 +52,10 @@ const Login = () => {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [otp, setOtp] = useState("");
-  const [otpStep, setOtpStep] = useState(1);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -164,34 +169,32 @@ const Login = () => {
     }
 
     try {
-      setLoading(true);
+      setOtpSending(true);
       const { data } = await api.post("/auth/send-otp", { email: cleanEmail });
 
-      setOtp("");
-      setOtpStep(2);
+      setOtpSent(true);
       setTimer(30);
 
-      setMessage(`Verification code sent to ${cleanEmail}. Please check your inbox or spam folder.`);
+      setMessage(`Verification code sent directly to ${cleanEmail}. Please check your inbox.`);
     } catch (err) {
       console.error("Send Email OTP error:", err);
       setError(
         err?.response?.data?.message || "Failed to send verification email. Please try again."
       );
     } finally {
-      setLoading(false);
+      setOtpSending(false);
     }
   };
 
   const handleVerifyEmailOtp = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     clearAlerts();
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanOtp = String(otp).replace(/\D/g, "").slice(0, 6);
 
     if (!cleanEmail) {
-      setError("Email address is missing. Please restart.");
-      setOtpStep(1);
+      setError("Email address is missing. Please enter your email.");
       return;
     }
 
@@ -201,17 +204,18 @@ const Login = () => {
     }
 
     try {
-      setLoading(true);
+      setVerifying(true);
       const { data } = await api.post("/auth/verify-otp", {
         email: cleanEmail,
         otp: cleanOtp,
       });
 
+      setIsVerified(true);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       window.dispatchEvent(new Event("authChanged"));
 
-      setMessage("Verification successful! Redirecting...");
+      setMessage("Verification successful! Redirecting to profile...");
       setTimeout(() => {
         navigate("/profile", { replace: true });
       }, 500);
@@ -221,7 +225,7 @@ const Login = () => {
         err?.response?.data?.message || "Invalid verification code. Please check your email."
       );
     } finally {
-      setLoading(false);
+      setVerifying(false);
     }
   };
 
@@ -244,9 +248,8 @@ const Login = () => {
             </h1>
 
             <p className="mt-4 text-emerald-100 text-sm leading-relaxed">
-              Sign in securely using your email and password to manage doctor
-              prescriptions, track real-time deliveries, and access authentic
-              pharmaceuticals.
+              Sign in securely using your email and password or receive an instant
+              verification code to manage doctor prescriptions and orders.
             </p>
           </div>
 
@@ -288,7 +291,7 @@ const Login = () => {
                   setMode(MODE.LOGIN);
                   clearAlerts();
                 }}
-                className={`pb-2 px-3 text-sm font-bold transition border-b-2 ${
+                className={`pb-2 px-3 text-sm font-bold transition border-b-2 cursor-pointer ${
                   mode === MODE.LOGIN
                     ? "border-emerald-600 text-emerald-700"
                     : "border-transparent text-slate-500 hover:text-slate-800"
@@ -302,7 +305,7 @@ const Login = () => {
                   setMode(MODE.REGISTER);
                   clearAlerts();
                 }}
-                className={`pb-2 px-3 text-sm font-bold transition border-b-2 ${
+                className={`pb-2 px-3 text-sm font-bold transition border-b-2 cursor-pointer ${
                   mode === MODE.REGISTER
                     ? "border-emerald-600 text-emerald-700"
                     : "border-transparent text-slate-500 hover:text-slate-800"
@@ -314,10 +317,9 @@ const Login = () => {
                 type="button"
                 onClick={() => {
                   setMode(MODE.EMAIL_OTP);
-                  setOtpStep(1);
                   clearAlerts();
                 }}
-                className={`pb-2 px-3 text-sm font-bold transition border-b-2 ${
+                className={`pb-2 px-3 text-sm font-bold transition border-b-2 cursor-pointer ${
                   mode === MODE.EMAIL_OTP
                     ? "border-emerald-600 text-emerald-700"
                     : "border-transparent text-slate-500 hover:text-slate-800"
@@ -387,12 +389,11 @@ const Login = () => {
                         type="button"
                         onClick={() => {
                           setMode(MODE.EMAIL_OTP);
-                          setOtpStep(1);
                           clearAlerts();
                         }}
-                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition"
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition cursor-pointer"
                       >
-                        Forgot Password?
+                        Sign in via Email Code?
                       </button>
                     </div>
                     <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
@@ -409,7 +410,7 @@ const Login = () => {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="text-slate-400 hover:text-slate-600 transition ml-2"
+                        className="text-slate-400 hover:text-slate-600 transition ml-2 cursor-pointer"
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
@@ -419,10 +420,13 @@ const Login = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2 mt-2"
+                    className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2 mt-2 cursor-pointer active:scale-[0.99]"
                   >
                     {loading ? (
-                      <span>Signing in...</span>
+                      <div className="flex items-center gap-2">
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Signing in...</span>
+                      </div>
                     ) : (
                       <>
                         <span>Sign In</span>
@@ -440,7 +444,7 @@ const Login = () => {
                       setMode(MODE.REGISTER);
                       clearAlerts();
                     }}
-                    className="font-bold text-emerald-600 hover:text-emerald-700 underline underline-offset-2"
+                    className="font-bold text-emerald-600 hover:text-emerald-700 underline underline-offset-2 cursor-pointer"
                   >
                     Create Account
                   </button>
@@ -461,7 +465,7 @@ const Login = () => {
                     Create New Account
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Register with your email to start ordering authentic medicines.
+                    Register with your details to start ordering authentic medicines.
                   </p>
                 </div>
 
@@ -518,7 +522,7 @@ const Login = () => {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="text-slate-400 hover:text-slate-600 transition ml-2"
+                        className="text-slate-400 hover:text-slate-600 transition ml-2 cursor-pointer"
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
@@ -544,10 +548,13 @@ const Login = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2 mt-2"
+                    className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2 mt-2 cursor-pointer active:scale-[0.99]"
                   >
                     {loading ? (
-                      <span>Creating Account...</span>
+                      <div className="flex items-center gap-2">
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Creating Account...</span>
+                      </div>
                     ) : (
                       <>
                         <span>Create My Account</span>
@@ -565,7 +572,7 @@ const Login = () => {
                       setMode(MODE.LOGIN);
                       clearAlerts();
                     }}
-                    className="font-bold text-emerald-600 hover:text-emerald-700 underline underline-offset-2"
+                    className="font-bold text-emerald-600 hover:text-emerald-700 underline underline-offset-2 cursor-pointer"
                   >
                     Sign In here
                   </button>
@@ -573,7 +580,7 @@ const Login = () => {
               </motion.div>
             )}
 
-            {/* Form 3: Email OTP Verification */}
+            {/* Form 3: Email OTP Verification (Job Portal Inline Format) */}
             {mode === MODE.EMAIL_OTP && (
               <motion.div
                 key="email-otp-form"
@@ -581,124 +588,119 @@ const Login = () => {
                 initial="initial"
                 animate="animate"
               >
-                {otpStep === 1 ? (
+                <div className="mb-6">
+                  <div className="h-11 w-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
+                    <KeyRound size={20} />
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                    Email Verification Code
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                    Send a 6-digit verification code to your email and verify inline.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Email ID Field + Inline Send/Resend OTP Button */}
                   <div>
-                    <div className="mb-6">
-                      <div className="h-11 w-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
-                        <KeyRound size={20} />
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Email ID <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                        <Mail size={18} className="text-slate-400 mr-2.5 shrink-0" />
+                        <input
+                          type="email"
+                          required
+                          placeholder="e.g. yourname@gmail.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          disabled={otpSending || isVerified}
+                          className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                        />
                       </div>
-                      <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                        Email Verification Code
-                      </h2>
-                      <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        We will send a 6-digit verification code directly to your email address.
-                      </p>
-                    </div>
-
-                    <form onSubmit={handleSendEmailOtp} className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                          Your Email Address <span className="text-red-500">*</span>
-                        </label>
-                        <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
-                          <Mail size={18} className="text-slate-400 mr-2.5 shrink-0" />
-                          <input
-                            type="email"
-                            required
-                            placeholder="Enter your registered email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
-                          />
-                        </div>
-                      </div>
-
                       <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                        type="button"
+                        disabled={otpSending || (otpSent && timer > 0) || !email || isVerified}
+                        onClick={handleSendEmailOtp}
+                        className="shrink-0 px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs shadow-md shadow-sky-500/20 disabled:opacity-50 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
                       >
-                        {loading ? (
-                          <span>Sending Code...</span>
+                        {otpSending ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            <span>Sending...</span>
+                          </>
+                        ) : otpSent ? (
+                          <>
+                            <Send size={13} />
+                            <span>{timer > 0 ? `Resend OTP (${timer}s)` : "Resend OTP"}</span>
+                          </>
                         ) : (
                           <>
-                            <span>Send Verification Code</span>
-                            <ArrowRight size={16} />
+                            <Send size={13} />
+                            <span>Send OTP</span>
                           </>
                         )}
                       </button>
-                    </form>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="mb-6">
-                      <div className="h-11 w-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
-                        <Lock size={20} />
-                      </div>
-                      <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                        Enter Email Code
-                      </h2>
-                      <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        We sent a 6-digit verification code to <strong className="text-slate-800">{email}</strong>
-                      </p>
                     </div>
+                  </div>
 
-                    <form onSubmit={handleVerifyEmailOtp} className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                          6-Digit Verification Code <span className="text-red-500">*</span>
-                        </label>
+                  {/* OTP Field + Inline Verify Button */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Enter Email OTP <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                        <KeyRound size={18} className="text-slate-400 mr-2.5 shrink-0" />
                         <input
                           type="text"
                           inputMode="numeric"
-                          autoFocus
-                          placeholder="Enter 6-digit code"
+                          placeholder="Enter 6-digit email OTP"
                           value={otp}
                           onChange={(e) =>
                             setOtp(String(e.target.value).replace(/\D/g, "").slice(0, 6))
                           }
                           maxLength={6}
-                          className="w-full text-center tracking-widest text-2xl font-bold py-3.5 rounded-xl border border-slate-200 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition placeholder:text-slate-300 placeholder:text-base placeholder:tracking-normal placeholder:font-normal"
+                          disabled={verifying || isVerified}
+                          className="w-full bg-transparent text-sm font-bold tracking-widest text-slate-900 outline-none placeholder:text-slate-400 placeholder:tracking-normal placeholder:font-normal"
                         />
-                        <p className="text-[11px] text-slate-500 mt-1.5 text-center">
-                          Please check your email inbox or spam folder for the 6-digit code.
-                        </p>
                       </div>
-
                       <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                        type="button"
+                        disabled={verifying || otp.length !== 6 || isVerified}
+                        onClick={handleVerifyEmailOtp}
+                        className={`shrink-0 px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                          isVerified
+                            ? "bg-emerald-500 text-white shadow-emerald-500/20"
+                            : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 disabled:opacity-50"
+                        }`}
                       >
-                        {loading ? "Verifying..." : "Verify Code & Sign In"}
+                        {verifying ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            <span>Verifying...</span>
+                          </>
+                        ) : isVerified ? (
+                          <>
+                            <Check size={14} />
+                            <span>Verified ✓</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check size={14} />
+                            <span>Verify</span>
+                          </>
+                        )}
                       </button>
-
-                      <div className="flex items-center justify-between text-xs pt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOtpStep(1);
-                            setOtp("");
-                            clearAlerts();
-                          }}
-                          className="text-slate-500 hover:text-slate-800 font-semibold flex items-center gap-1 transition"
-                        >
-                          <RotateCcw size={13} />
-                          <span>Change Email</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={timer > 0 || loading}
-                          onClick={() => handleSendEmailOtp()}
-                          className="font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-40 transition"
-                        >
-                          {timer > 0 ? `Resend code in ${timer}s` : "Resend Code"}
-                        </button>
-                      </div>
-                    </form>
+                    </div>
+                    {otpSent && (
+                      <p className="text-[11px] text-slate-500 mt-1.5">
+                        6-digit code dispatched to <strong className="text-emerald-700">{email}</strong>. Check inbox or spam folder.
+                      </p>
+                    )}
                   </div>
-                )}
+                </div>
               </motion.div>
             )}
           </div>

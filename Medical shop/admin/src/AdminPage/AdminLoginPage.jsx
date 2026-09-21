@@ -11,9 +11,11 @@ import {
   CheckCircle2,
   AlertCircle,
   KeyRound,
-  RotateCcw,
   Eye,
   EyeOff,
+  Send,
+  Loader2,
+  Check,
 } from "lucide-react";
 import API from "../api/axios";
 import { saveAdminAuth } from "../utils/auth";
@@ -47,7 +49,10 @@ const AdminLoginPage = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState("");
-  const [otpStep, setOtpStep] = useState(1);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -93,7 +98,7 @@ const AdminLoginPage = () => {
           response.data.user || { email: cleanEmail, role: "admin", name: "Admin" }
         );
 
-        setMessage("Admin authenticated successfully! Security alert email dispatched. Redirecting...");
+        setMessage("Admin authenticated successfully! Redirecting...");
         setTimeout(() => {
           navigate(from, { replace: true });
         }, 600);
@@ -122,16 +127,14 @@ const AdminLoginPage = () => {
     }
 
     try {
-      setLoading(true);
+      setOtpSending(true);
       const response = await API.post("/admin/send-otp", { email: cleanEmail });
 
-      setOtp("");
-      setOtpStep(2);
+      setOtpSent(true);
       setTimer(30);
-
       setMessage(
         response.data?.message ||
-          `Verification code sent to ${cleanEmail}. Please check your inbox or spam folder.`
+          `Verification code sent to ${cleanEmail}. Please check your inbox.`
       );
     } catch (err) {
       console.error("Send admin OTP error:", err);
@@ -140,20 +143,19 @@ const AdminLoginPage = () => {
           "Failed to send admin verification code. Please check your email."
       );
     } finally {
-      setLoading(false);
+      setOtpSending(false);
     }
   };
 
   const handleVerifyAdminOtp = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     clearAlerts();
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanOtp = String(otp).replace(/\D/g, "").slice(0, 6);
 
     if (!cleanEmail) {
-      setError("Admin email address is missing. Please restart.");
-      setOtpStep(1);
+      setError("Admin email address is missing. Please enter your email.");
       return;
     }
 
@@ -163,19 +165,20 @@ const AdminLoginPage = () => {
     }
 
     try {
-      setLoading(true);
+      setVerifying(true);
       const response = await API.post("/admin/verify-otp", {
         email: cleanEmail,
         otp: cleanOtp,
       });
 
       if (response.data?.token) {
+        setIsVerified(true);
         saveAdminAuth(
           response.data.token,
           response.data.user || { email: cleanEmail, role: "admin", name: "Admin" }
         );
 
-        setMessage("Admin verified successfully! Security alert email dispatched. Redirecting...");
+        setMessage("Admin verified successfully! Access granted. Redirecting...");
         setTimeout(() => {
           navigate(from, { replace: true });
         }, 600);
@@ -189,55 +192,55 @@ const AdminLoginPage = () => {
           "Invalid verification code. Please check your email."
       );
     } finally {
-      setLoading(false);
+      setVerifying(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-50 via-white to-slate-50 py-10 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
-      <div className="w-full max-w-5xl rounded-[32px] border border-slate-200/80 bg-white shadow-2xl shadow-emerald-950/5 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[580px]">
+    <div className="min-h-screen bg-linear-to-b from-slate-900 via-slate-950 to-slate-900 py-10 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+      <div className="w-full max-w-5xl rounded-[32px] border border-slate-800 bg-slate-900/95 shadow-2xl shadow-emerald-950/20 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[580px] backdrop-blur-xl">
         {/* Left Hero Banner */}
-        <div className="lg:col-span-5 bg-linear-to-br from-emerald-700 via-teal-800 to-slate-900 p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden">
-          <div className="absolute -right-16 -top-16 w-56 h-56 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -left-16 -bottom-16 w-56 h-56 bg-teal-400/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="lg:col-span-5 bg-linear-to-br from-emerald-800 via-teal-900 to-slate-950 p-8 sm:p-10 text-white flex flex-col justify-between relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-800">
+          <div className="absolute -right-16 -top-16 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -left-16 -bottom-16 w-56 h-56 bg-teal-400/10 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-md px-3.5 py-1 text-xs font-semibold text-emerald-100 mb-6">
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md px-3.5 py-1 text-xs font-semibold text-emerald-300 mb-6">
               <Sparkles size={14} />
               MediCare Admin Console
             </div>
 
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-tight">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-tight text-white">
               Control Center, Verified &amp; Secured.
             </h1>
 
-            <p className="mt-4 text-emerald-100 text-sm leading-relaxed">
-              Sign in securely using your administrator credentials or verify via email
-              code to oversee inventory, live delivery routes, and prescriptions.
+            <p className="mt-4 text-emerald-100/70 text-sm leading-relaxed">
+              Sign in securely using your administrator credentials or verify via real-time email
+              code to oversee live inventory, orders, and prescriptions.
             </p>
           </div>
 
           <div className="mt-8 space-y-3.5 relative z-10">
-            <div className="flex items-center gap-3 rounded-2xl bg-white/10 backdrop-blur-sm p-3.5 text-xs text-emerald-50">
-              <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-800/60 border border-slate-700/50 backdrop-blur-sm p-3.5 text-xs text-emerald-50">
+              <div className="h-8 w-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                 <ShieldCheck size={16} />
               </div>
               <div>
-                <p className="font-bold">Full Administrative Clearance</p>
-                <p className="text-[11px] text-emerald-200">
+                <p className="font-bold text-slate-200">Full Administrative Clearance</p>
+                <p className="text-[11px] text-emerald-400/80">
                   Real-time pharmacy &amp; order management
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-2xl bg-white/10 backdrop-blur-sm p-3.5 text-xs text-emerald-50">
-              <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-800/60 border border-slate-700/50 backdrop-blur-sm p-3.5 text-xs text-emerald-50">
+              <div className="h-8 w-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
                 <Mail size={16} />
               </div>
               <div>
-                <p className="font-bold">Security Alert Protection</p>
-                <p className="text-[11px] text-emerald-200">
-                  Instant login notification sent to admin email
+                <p className="font-bold text-slate-200">Instant Email Delivery</p>
+                <p className="text-[11px] text-sky-400/80">
+                  Ultra-fast OTP dispatched directly to admin inbox
                 </p>
               </div>
             </div>
@@ -245,20 +248,20 @@ const AdminLoginPage = () => {
         </div>
 
         {/* Right Authentication Form Area */}
-        <div className="lg:col-span-7 p-8 sm:p-12 flex flex-col justify-between">
+        <div className="lg:col-span-7 p-8 sm:p-12 flex flex-col justify-between bg-slate-900/60">
           <div>
             {/* Mode Switcher Tabs */}
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-4 mb-6">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-4 mb-6">
               <button
                 type="button"
                 onClick={() => {
                   setMode(MODE.PASSWORD);
                   clearAlerts();
                 }}
-                className={`pb-2 px-3 text-sm font-bold transition border-b-2 ${
+                className={`pb-2 px-3 text-sm font-bold transition border-b-2 cursor-pointer ${
                   mode === MODE.PASSWORD
-                    ? "border-emerald-600 text-emerald-700"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
+                    ? "border-emerald-500 text-emerald-400"
+                    : "border-transparent text-slate-400 hover:text-slate-200"
                 }`}
               >
                 Sign In
@@ -267,13 +270,12 @@ const AdminLoginPage = () => {
                 type="button"
                 onClick={() => {
                   setMode(MODE.EMAIL_OTP);
-                  setOtpStep(1);
                   clearAlerts();
                 }}
-                className={`pb-2 px-3 text-sm font-bold transition border-b-2 ${
+                className={`pb-2 px-3 text-sm font-bold transition border-b-2 cursor-pointer ${
                   mode === MODE.EMAIL_OTP
-                    ? "border-emerald-600 text-emerald-700"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
+                    ? "border-emerald-500 text-emerald-400"
+                    : "border-transparent text-slate-400 hover:text-slate-200"
                 }`}
               >
                 Email Code Login
@@ -282,15 +284,15 @@ const AdminLoginPage = () => {
 
             {/* Alert Messages */}
             {message && (
-              <div className="mb-5 rounded-2xl bg-emerald-50 border border-emerald-200 p-3.5 text-xs font-semibold text-emerald-800 flex items-center gap-2">
-                <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
+              <div className="mb-5 rounded-2xl bg-emerald-950/40 border border-emerald-800/60 p-3.5 text-xs font-semibold text-emerald-300 flex items-center gap-2">
+                <CheckCircle2 size={16} className="shrink-0 text-emerald-400" />
                 <span>{message}</span>
               </div>
             )}
 
             {error && (
-              <div className="mb-5 rounded-2xl bg-rose-50 border border-rose-200 p-3.5 text-xs font-semibold text-rose-700 flex items-center gap-2">
-                <AlertCircle size={16} className="shrink-0" />
+              <div className="mb-5 rounded-2xl bg-rose-950/40 border border-rose-800/60 p-3.5 text-xs font-semibold text-rose-300 flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0 text-rose-400" />
                 <span>{error}</span>
               </div>
             )}
@@ -304,20 +306,20 @@ const AdminLoginPage = () => {
                 animate="animate"
               >
                 <div className="mb-6">
-                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                  <h2 className="text-2xl font-black text-white tracking-tight">
                     Welcome Back, Admin
                   </h2>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                  <p className="text-xs sm:text-sm text-slate-400 mt-1">
                     Sign in with your registered admin email address and password.
                   </p>
                 </div>
 
                 <form onSubmit={handlePasswordLogin} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Admin Email Address <span className="text-red-500">*</span>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                      Admin Email Address <span className="text-red-400">*</span>
                     </label>
-                    <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                    <div className="flex items-center rounded-xl border border-slate-700 bg-slate-800/80 px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
                       <Mail size={18} className="text-slate-400 mr-2.5 shrink-0" />
                       <input
                         type="email"
@@ -326,29 +328,28 @@ const AdminLoginPage = () => {
                         placeholder="Enter admin email (e.g. admin@medicare.com)"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                        className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-500 placeholder:font-normal"
                       />
                     </div>
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                        Admin Password <span className="text-red-500">*</span>
+                      <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+                        Admin Password <span className="text-red-400">*</span>
                       </label>
                       <button
                         type="button"
                         onClick={() => {
                           setMode(MODE.EMAIL_OTP);
-                          setOtpStep(1);
                           clearAlerts();
                         }}
-                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition"
+                        className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition cursor-pointer"
                       >
-                        Forgot Password?
+                        Sign in via Email Code?
                       </button>
                     </div>
-                    <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                    <div className="flex items-center rounded-xl border border-slate-700 bg-slate-800/80 px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
                       <Lock size={18} className="text-slate-400 mr-2.5 shrink-0" />
                       <input
                         type={showPassword ? "text" : "password"}
@@ -357,12 +358,12 @@ const AdminLoginPage = () => {
                         placeholder="Enter admin password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
+                        className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-500 placeholder:font-normal"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="text-slate-400 hover:text-slate-600 transition ml-2"
+                        className="text-slate-400 hover:text-slate-200 transition ml-2 cursor-pointer"
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
@@ -372,10 +373,13 @@ const AdminLoginPage = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2 mt-2 cursor-pointer"
+                    className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-950/40 disabled:opacity-50 transition flex items-center justify-center gap-2 mt-2 cursor-pointer active:scale-[0.99]"
                   >
                     {loading ? (
-                      <span>Verifying credentials...</span>
+                      <div className="flex items-center gap-2">
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Verifying credentials...</span>
+                      </div>
                     ) : (
                       <>
                         <span>Sign In to Dashboard</span>
@@ -387,7 +391,7 @@ const AdminLoginPage = () => {
               </motion.div>
             )}
 
-            {/* Form 2: Admin Email Code OTP Login */}
+            {/* Form 2: Admin Email Code OTP Login (Job Portal Style Inline Layout) */}
             {mode === MODE.EMAIL_OTP && (
               <motion.div
                 key="admin-email-otp-form"
@@ -395,137 +399,131 @@ const AdminLoginPage = () => {
                 initial="initial"
                 animate="animate"
               >
-                {otpStep === 1 ? (
+                <div className="mb-6">
+                  <div className="h-11 w-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4">
+                    <KeyRound size={20} />
+                  </div>
+                  <h2 className="text-2xl font-black text-white tracking-tight">
+                    Admin Email Verification
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                    Send a 6-digit verification code to your admin email address and verify inline.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Email ID Field + Inline Send/Resend OTP Button */}
                   <div>
-                    <div className="mb-6">
-                      <div className="h-11 w-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
-                        <KeyRound size={20} />
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                      Email ID <span className="text-red-400">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center rounded-xl border border-slate-700 bg-slate-800/80 px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                        <Mail size={18} className="text-slate-400 mr-2.5 shrink-0" />
+                        <input
+                          type="email"
+                          required
+                          placeholder="e.g. pandikarthi567@gmail.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          disabled={otpSending || isVerified}
+                          className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-500 placeholder:font-normal"
+                        />
                       </div>
-                      <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                        Admin Email Verification
-                      </h2>
-                      <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        We will send a 6-digit verification code directly to your admin email address.
-                      </p>
-                    </div>
-
-                    <form onSubmit={handleSendAdminOtp} className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                          Admin Email Address <span className="text-red-500">*</span>
-                        </label>
-                        <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
-                          <Mail size={18} className="text-slate-400 mr-2.5 shrink-0" />
-                          <input
-                            type="email"
-                            required
-                            autoComplete="off"
-                            placeholder="Enter admin email address"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
-                          />
-                        </div>
-                      </div>
-
                       <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2 cursor-pointer"
+                        type="button"
+                        disabled={otpSending || (otpSent && timer > 0) || !email || isVerified}
+                        onClick={handleSendAdminOtp}
+                        className="shrink-0 px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs shadow-md shadow-sky-500/20 disabled:opacity-40 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
                       >
-                        {loading ? (
-                          <span>Sending Code...</span>
+                        {otpSending ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            <span>Sending...</span>
+                          </>
+                        ) : otpSent ? (
+                          <>
+                            <Send size={13} />
+                            <span>{timer > 0 ? `Resend OTP (${timer}s)` : "Resend OTP"}</span>
+                          </>
                         ) : (
                           <>
-                            <span>Send Verification Code</span>
-                            <ArrowRight size={16} />
+                            <Send size={13} />
+                            <span>Send OTP</span>
                           </>
                         )}
                       </button>
-                    </form>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="mb-6">
-                      <div className="h-11 w-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
-                        <Lock size={20} />
-                      </div>
-                      <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                        Enter Admin Email Code
-                      </h2>
-                      <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        We sent a 6-digit verification code to <strong className="text-slate-800">{email}</strong>
-                      </p>
                     </div>
+                  </div>
 
-                    <form onSubmit={handleVerifyAdminOtp} className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                          6-Digit Verification Code <span className="text-red-500">*</span>
-                        </label>
+                  {/* OTP Field + Inline Verify Button */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                      Enter Email OTP <span className="text-red-400">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center rounded-xl border border-slate-700 bg-slate-800/80 px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition">
+                        <KeyRound size={18} className="text-slate-400 mr-2.5 shrink-0" />
                         <input
                           type="text"
                           inputMode="numeric"
-                          autoFocus
-                          placeholder="Enter 6-digit code"
+                          placeholder="Enter 6-digit email OTP"
                           value={otp}
                           onChange={(e) =>
                             setOtp(String(e.target.value).replace(/\D/g, "").slice(0, 6))
                           }
                           maxLength={6}
-                          className="w-full text-center tracking-widest text-2xl font-bold py-3.5 rounded-xl border border-slate-200 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition placeholder:text-slate-300 placeholder:text-base placeholder:tracking-normal placeholder:font-normal"
+                          disabled={verifying || isVerified}
+                          className="w-full bg-transparent text-sm font-bold tracking-widest text-white outline-none placeholder:text-slate-500 placeholder:tracking-normal placeholder:font-normal"
                         />
-                        <p className="text-[11px] text-slate-500 mt-1.5 text-center">
-                          Please check your email inbox or spam folder for the 6-digit code.
-                        </p>
                       </div>
-
                       <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-3.5 px-6 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-500/20 disabled:opacity-50 transition flex items-center justify-center gap-2 cursor-pointer"
+                        type="button"
+                        disabled={verifying || otp.length !== 6 || isVerified}
+                        onClick={handleVerifyAdminOtp}
+                        className={`shrink-0 px-5 py-2.5 rounded-xl font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                          isVerified
+                            ? "bg-emerald-500 text-white shadow-emerald-500/20"
+                            : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20 disabled:opacity-40"
+                        }`}
                       >
-                        {loading ? "Verifying..." : "Verify Code & Sign In"}
+                        {verifying ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            <span>Verifying...</span>
+                          </>
+                        ) : isVerified ? (
+                          <>
+                            <Check size={14} />
+                            <span>Verified ✓</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check size={14} />
+                            <span>Verify</span>
+                          </>
+                        )}
                       </button>
-
-                      <div className="flex items-center justify-between text-xs pt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOtpStep(1);
-                            setOtp("");
-                            clearAlerts();
-                          }}
-                          className="text-slate-500 hover:text-slate-800 font-semibold flex items-center gap-1 transition cursor-pointer"
-                        >
-                          <RotateCcw size={13} />
-                          <span>Change Email</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={timer > 0 || loading}
-                          onClick={() => handleSendAdminOtp()}
-                          className="font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-40 transition cursor-pointer"
-                        >
-                          {timer > 0 ? `Resend code in ${timer}s` : "Resend Code"}
-                        </button>
-                      </div>
-                    </form>
+                    </div>
+                    {otpSent && (
+                      <p className="text-[11px] text-slate-400 mt-1.5">
+                        6-digit code dispatched to <strong className="text-emerald-400">{email}</strong>. Check inbox or spam.
+                      </p>
+                    )}
                   </div>
-                )}
+                </div>
               </motion.div>
             )}
           </div>
 
-          <div className="pt-6 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+          <div className="pt-6 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
             <div className="flex items-center gap-2">
-              <ShieldCheck size={14} className="text-emerald-600" />
+              <ShieldCheck size={14} className="text-emerald-500" />
               <span>256-Bit Encrypted Admin Session</span>
             </div>
             <a
               href="http://localhost:5173"
-              className="text-slate-400 hover:text-emerald-600 font-medium transition"
+              className="text-slate-400 hover:text-emerald-400 font-medium transition"
             >
               Customer Storefront &rarr;
             </a>

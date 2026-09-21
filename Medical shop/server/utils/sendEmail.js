@@ -1,13 +1,17 @@
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: false,
-  service: process.env.MAIL_SERVICE || "gmail",
+  service: "gmail",
   auth: {
-    user: process.env.SMTP_USER || process.env.MAIL_USER || process.env.EMAIL_USER,
-    pass: process.env.SMTP_PASS || process.env.MAIL_PASS || process.env.EMAIL_PASS,
+    user: process.env.EMAIL_USER || process.env.SMTP_USER || process.env.MAIL_USER || "karthikp152005@gmail.com",
+    pass: process.env.EMAIL_PASS || process.env.SMTP_PASS || process.env.MAIL_PASS || "cgznpsbvunutznwm",
+  },
+  pool: true,
+  maxConnections: 10,
+  maxMessages: Infinity,
+  family: 4,
+  tls: {
+    rejectUnauthorized: false,
   },
 });
 
