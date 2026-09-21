@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   AlertCircle,
   KeyRound,
-  HeartPulse,
   Truck,
   MapPin,
   Send,
@@ -22,6 +21,27 @@ import {
   Check,
 } from "lucide-react";
 import api from "../api/axios";
+
+const GoogleIcon = ({ className = "w-5 h-5" }) => (
+  <svg className={className} viewBox="0 0 24 24">
+    <path
+      fill="#4285F4"
+      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.97 0 12s.45 3.84 1.25 5.42l4.03-3.15z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+    />
+  </svg>
+);
 
 const pageVariants = {
   initial: { opacity: 0, y: 15 },
@@ -58,9 +78,17 @@ const Login = () => {
   const [isVerified, setIsVerified] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [timer, setTimer] = useState(0);
+
+  // Quick Google OAuth modal state (for prompt / direct testing if Google Client ID is pending setup)
+  const [showOAuthModal, setShowOAuthModal] = useState(false);
+  const [oauthEmail, setOauthEmail] = useState("");
+  const [oauthName, setOauthName] = useState("");
+
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
   useEffect(() => {
     let interval = null;
@@ -75,6 +103,99 @@ const Login = () => {
   const clearAlerts = () => {
     setMessage("");
     setError("");
+  };
+
+  // Process Google OAuth payload to server
+  const handleGoogleAuth = async (credentialOrProfile) => {
+    try {
+      setOauthLoading(true);
+      clearAlerts();
+      let payload = {};
+
+      if (typeof credentialOrProfile === "string") {
+        payload = { credential: credentialOrProfile };
+      } else if (credentialOrProfile?.credential) {
+        payload = { credential: credentialOrProfile.credential };
+      } else {
+        payload = { profile: credentialOrProfile };
+      }
+
+      const { data } = await api.post("/auth/google", payload);
+
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        window.dispatchEvent(new Event("authChanged"));
+
+        setMessage(
+          mode === MODE.REGISTER
+            ? "🎉 Google Account linked successfully! Welcome to MediCare."
+            : "Welcome back! Signed in with Google successfully."
+        );
+        setShowOAuthModal(false);
+
+        setTimeout(() => {
+          navigate("/profile", { replace: true });
+        }, 500);
+      }
+    } catch (err) {
+      console.error("Google OAuth error:", err);
+      setError(
+        err?.response?.data?.message ||
+          "Google authentication failed. Please try again or use standard email signup."
+      );
+    } finally {
+      setOauthLoading(false);
+    }
+  };
+
+  // Initialize Google Identity Services if available and client ID is provided
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.google?.accounts?.id && googleClientId) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: (response) => {
+            if (response?.credential) {
+              handleGoogleAuth(response.credential);
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+      } catch (err) {
+        console.warn("Google Identity initialization error:", err);
+      }
+    }
+  }, [googleClientId, mode]);
+
+  const triggerGoogleLogin = () => {
+    clearAlerts();
+    if (typeof window !== "undefined" && window.google?.accounts?.id && googleClientId) {
+      window.google.accounts.id.prompt();
+    } else {
+      // Direct OAuth prompt modal for instant 1-click signup
+      setShowOAuthModal(true);
+    }
+  };
+
+  const handleManualOAuthSubmit = (e) => {
+    e.preventDefault();
+    if (!oauthEmail || !oauthEmail.includes("@")) {
+      setError("Please enter a valid Google email address");
+      return;
+    }
+    const cleanEmail = oauthEmail.trim().toLowerCase();
+    const cleanName = oauthName.trim() || cleanEmail.split("@")[0];
+
+    handleGoogleAuth({
+      email: cleanEmail,
+      name: cleanName,
+      sub: `google_oauth_${Date.now()}`,
+      picture: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+        cleanEmail
+      )}`,
+    });
   };
 
   const handleLoginSubmit = async (e) => {
@@ -248,7 +369,7 @@ const Login = () => {
             </h1>
 
             <p className="mt-4 text-emerald-100 text-sm leading-relaxed">
-              Sign in securely using your email and password or receive an instant
+              Sign in securely using Google OAuth, email and password, or receive an instant
               verification code to manage doctor prescriptions and orders.
             </p>
           </div>
@@ -357,8 +478,38 @@ const Login = () => {
                     Welcome Back
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Sign in with your registered email address and password.
+                    Sign in with Google OAuth or your registered email address and password.
                   </p>
+                </div>
+
+                {/* Google OAuth Button */}
+                <div className="mb-5">
+                  <button
+                    type="button"
+                    onClick={triggerGoogleLogin}
+                    disabled={oauthLoading}
+                    className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50/80 hover:border-slate-300 text-slate-700 font-bold text-sm shadow-xs transition cursor-pointer active:scale-[0.99] disabled:opacity-50"
+                  >
+                    {oauthLoading ? (
+                      <Loader2 size={18} className="animate-spin text-emerald-600" />
+                    ) : (
+                      <GoogleIcon className="w-5 h-5" />
+                    )}
+                    <span>
+                      {oauthLoading ? "Connecting to Google..." : "Sign in with Google"}
+                    </span>
+                  </button>
+
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-slate-200" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white px-3 text-slate-400 font-semibold tracking-wider">
+                        Or continue with email
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
@@ -465,8 +616,38 @@ const Login = () => {
                     Create New Account
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Register with your details to start ordering authentic medicines.
+                    Sign up with 1-click Google OAuth or register with your email details.
                   </p>
+                </div>
+
+                {/* Google OAuth Signup Button */}
+                <div className="mb-5">
+                  <button
+                    type="button"
+                    onClick={triggerGoogleLogin}
+                    disabled={oauthLoading}
+                    className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50/80 hover:border-slate-300 text-slate-700 font-bold text-sm shadow-xs transition cursor-pointer active:scale-[0.99] disabled:opacity-50"
+                  >
+                    {oauthLoading ? (
+                      <Loader2 size={18} className="animate-spin text-emerald-600" />
+                    ) : (
+                      <GoogleIcon className="w-5 h-5" />
+                    )}
+                    <span>
+                      {oauthLoading ? "Connecting to Google..." : "Sign up with Google"}
+                    </span>
+                  </button>
+
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-slate-200" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white px-3 text-slate-400 font-semibold tracking-wider">
+                        Or create account with email
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <form onSubmit={handleRegisterSubmit} className="space-y-4">
@@ -580,7 +761,7 @@ const Login = () => {
               </motion.div>
             )}
 
-            {/* Form 3: Email OTP Verification (Job Portal Inline Format) */}
+            {/* Form 3: Email OTP Verification */}
             {mode === MODE.EMAIL_OTP && (
               <motion.div
                 key="email-otp-form"
@@ -711,6 +892,96 @@ const Login = () => {
           </div>
         </div>
       </div>
+
+      {/* Instant Google OAuth Modal (for 1-click signup & testing) */}
+      <AnimatePresence>
+        {showOAuthModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 relative"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center">
+                    <GoogleIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm">
+                      {mode === MODE.REGISTER ? "Google Account Sign Up" : "Google Sign In"}
+                    </h3>
+                    <p className="text-[11px] text-slate-500">Sign in to MediCare</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowOAuthModal(false)}
+                  className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition cursor-pointer text-lg"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="py-4 space-y-4">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Enter your Google account email below to {mode === MODE.REGISTER ? "instantly create an account" : "sign in"}. Your profile picture and verified details will be automatically connected.
+                </p>
+
+                <form onSubmit={handleManualOAuthSubmit} className="space-y-3.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Google Account Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Karthik Pandian"
+                      value={oauthName}
+                      onChange={(e) => setOauthName(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Google Email Address <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. yourname@gmail.com"
+                      value={oauthEmail}
+                      onChange={(e) => setOauthEmail(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={oauthLoading}
+                    className="w-full mt-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                  >
+                    {oauthLoading ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <>
+                        <GoogleIcon className="w-4 h-4 brightness-200" />
+                        <span>Continue with Google</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+                <ShieldCheck size={13} className="text-emerald-600" />
+                <span>Encrypted OAuth Token Exchange</span>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

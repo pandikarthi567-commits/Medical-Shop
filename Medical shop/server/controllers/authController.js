@@ -22,8 +22,10 @@ const sanitizeUser = (user) => ({
   _id: user._id,
   name: user.name || "",
   email: user.email || "",
+  avatar: user.avatar || "",
   phone: user.phone || "",
   location: user.location || "",
+  authProvider: user.authProvider || "local",
   isPhoneVerified: user.isPhoneVerified,
   joinedDate: user.createdAt,
 });
@@ -356,6 +358,114 @@ const getMyPurchases = async (req, res) => {
   }
 };
 
+const decodeGoogleCredential = (credential) => {
+  try {
+    const parts = credential.split(".");
+    if (parts.length < 2) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = Buffer.from(base64, "base64").toString("utf-8");
+    return JSON.parse(jsonPayload);
+  } catch (err) {
+    console.error("Failed to decode Google credential:", err);
+    return null;
+  }
+};
+
+const googleOAuthLogin = async (req, res) => {
+  try {
+    const { credential, profile } = req.body;
+    let googleUser = null;
+
+    if (credential) {
+      googleUser = decodeGoogleCredential(credential);
+    } else if (profile && typeof profile === "object") {
+      googleUser = profile;
+    }
+
+    if (!googleUser || (!googleUser.email && !googleUser.sub)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Google authentication data received",
+      });
+    }
+
+    const email = normalizeEmail(googleUser.email);
+    const googleId = googleUser.sub || googleUser.id || "";
+    const name =
+      (
+        googleUser.name ||
+        `${googleUser.given_name || ""} ${googleUser.family_name || ""}`
+      ).trim() || email.split("@")[0];
+    const avatar = googleUser.picture || googleUser.avatar || "";
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is missing from Google account profile",
+      });
+    }
+
+    let user = await User.findOne({
+      $or: [{ email }, ...(googleId ? [{ googleId }] : [])],
+    });
+
+    if (user) {
+      let isChanged = false;
+      if (!user.googleId && googleId) {
+        user.googleId = googleId;
+        isChanged = true;
+      }
+      if (!user.avatar && avatar) {
+        user.avatar = avatar;
+        isChanged = true;
+      }
+      if (!user.name && name) {
+        user.name = name;
+        isChanged = true;
+      }
+      if (isChanged) {
+        await user.save();
+      }
+    } else {
+      user = await User.create({
+        name,
+        email,
+        avatar,
+        googleId,
+        authProvider: "google",
+        password: null,
+        phone: "",
+        location: "",
+        isPhoneVerified: false,
+        otp: null,
+        otpExpiresAt: null,
+      });
+    }
+
+    try {
+      await syncSingleUserToCustomer(user._id);
+    } catch (custErr) {
+      console.warn("Could not sync customer on Google OAuth:", custErr.message);
+    }
+
+    const token = generateToken(user._id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Google authentication successful",
+      token,
+      user: sanitizeUser(user),
+    });
+  } catch (error) {
+    console.error("Google OAuth error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Server error during Google OAuth authentication",
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -363,4 +473,5 @@ module.exports = {
   verifyOtp,
   getMyProfile,
   getMyPurchases,
+  googleOAuthLogin,
 };

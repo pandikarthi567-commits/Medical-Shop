@@ -33,6 +33,17 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    googleId: {
+      type: String,
+      default: "",
+    },
+
+    authProvider: {
+      type: String,
+      enum: ["local", "google", "email_otp"],
+      default: "local",
+    },
+
     location: {
       type: String,
       trim: true,
