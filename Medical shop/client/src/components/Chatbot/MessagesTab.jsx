@@ -1,7 +1,8 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Send } from "lucide-react";
-import { cannedResponses } from "./chatbotData";
+import { ArrowLeft, Send, Sparkles } from "lucide-react";
+import { askUniversalChatbot } from "./chatbotService";
+import AnimatedBotMascot from "./AnimatedBotMascot";
 
 const MessagesTab = ({
   messages,
@@ -32,7 +33,7 @@ const MessagesTab = ({
       const welcomeMsg = {
         id: "msg-welcome",
         sender: "bot",
-        text: `Hello ${userName}! 👋 How can we help you today? You can ask about medicine stock, order tracking, prescriptions, or payment.`,
+        text: `Hello ${userName}! 👋 I'm Dr. MediBot, your AI Pharmacy & Healthcare assistant.\n\nConnected to Universal Chatbot AI Engine. Ask me about medicine stock, prices, prescriptions, order tracking, or dosage advice.`,
         timestamp: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -48,7 +49,7 @@ const MessagesTab = ({
     }
   };
 
-  const sendMessage = (textToSend) => {
+  const sendMessage = async (textToSend) => {
     const text = textToSend || inputVal.trim();
     if (!text) return;
 
@@ -66,29 +67,15 @@ const MessagesTab = ({
     setInputVal("");
     setIsTyping(true);
 
-    // Simulate smart bot response
-    setTimeout(() => {
-      let replyText = cannedResponses.default;
-      const lower = text.toLowerCase();
-
-      if (lower.includes("order") || lower.includes("track") || lower.includes("delivery")) {
-        replyText = cannedResponses.order;
-      } else if (lower.includes("prescription") || lower.includes("doctor") || lower.includes("rx")) {
-        replyText = cannedResponses.prescription;
-      } else if (lower.includes("password") || lower.includes("login") || lower.includes("reset")) {
-        replyText = cannedResponses.password;
-      } else if (lower.includes("cluster") || lower.includes("mongo") || lower.includes("database")) {
-        replyText = cannedResponses.cluster;
-      } else if (lower.includes("refund") || lower.includes("cancel") || lower.includes("payment")) {
-        replyText = cannedResponses.refund;
-      } else if (lower.includes("doctor") || lower.includes("pharmacist") || lower.includes("consult")) {
-        replyText = cannedResponses.doctor;
-      }
+    try {
+      // Send question to Universal Chatbot API with provided API Key & Bearer Token
+      const result = await askUniversalChatbot(text);
 
       const botReply = {
         id: "bot-" + Date.now(),
         sender: "bot",
-        text: replyText,
+        text: result.answer,
+        source: result.source,
         timestamp: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -96,8 +83,21 @@ const MessagesTab = ({
       };
 
       setMessages((prev) => [...prev, botReply]);
+    } catch (err) {
+      console.error("[Chatbot Error]", err);
+      const fallbackReply = {
+        id: "bot-" + Date.now(),
+        sender: "bot",
+        text: "Thank you for reaching out! Our medical team and licensed pharmacists are reviewing your inquiry. Please check back shortly or browse the Help Center.",
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+      setMessages((prev) => [...prev, fallbackReply]);
+    } finally {
       setIsTyping(false);
-    }, 900);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -108,18 +108,18 @@ const MessagesTab = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white text-gray-900">
-      {/* 1. Header */}
+    <div className="flex flex-col h-full bg-slate-50/70 text-slate-800 font-sans">
+      {/* 1. Header with Website Emerald Gradient */}
       {!inConversation ? (
-        // Header when browsing Messages view (Matches Screenshot 2)
-        <div className="px-5 py-4 border-b border-gray-150 flex items-center justify-between relative">
+        // Header when browsing Messages view
+        <div className="px-5 py-4 bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 text-white flex items-center justify-between shadow-sm">
           <div className="w-6"></div>
-          <h2 className="text-[17px] font-semibold text-gray-900 text-center flex-1">
+          <h2 className="text-[17px] font-bold text-white text-center flex-1">
             Messages
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 p-1 rounded-full transition-colors cursor-pointer"
+            className="text-emerald-100 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
             aria-label="Close"
           >
             <svg
@@ -138,33 +138,33 @@ const MessagesTab = ({
         </div>
       ) : (
         // Header when in Active Chat
-        <div className="px-4 py-3 border-b border-gray-150 flex items-center justify-between bg-white shadow-2xs">
-          <div className="flex items-center gap-2">
+        <div className="px-4 py-3 bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 text-white flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => setInConversation(false)}
-              className="p-1.5 -ml-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+              className="p-1.5 -ml-1 text-emerald-100 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
               aria-label="Back"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div className="relative">
-              <div className="w-8 h-8 rounded-full bg-[#001e2b] text-white flex items-center justify-center font-bold text-xs">
-                M
-              </div>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 absolute -bottom-0.5 -right-0.5 border-2 border-white"></span>
+            <div className="w-9 h-9 rounded-full bg-emerald-950/60 border border-emerald-300 flex items-center justify-center overflow-hidden shrink-0">
+              <AnimatedBotMascot size="sm" showStatus={false} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-gray-900 leading-tight">
-                Support Team
-              </p>
-              <p className="text-[11px] text-emerald-600 font-medium">
-                Active now
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-bold text-white leading-tight">
+                  Dr. MediBot
+                </p>
+                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+              </div>
+              <p className="text-[11px] text-emerald-100/90 font-medium">
+                Universal AI Engine • Connected
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 p-1 rounded-full transition-colors cursor-pointer"
+            className="text-emerald-100 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
             aria-label="Close"
           >
             <svg
@@ -185,44 +185,40 @@ const MessagesTab = ({
 
       {/* 2. Body View */}
       {!inConversation ? (
-        // Empty State (Matches Screenshot 2 Exactly)
-        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center select-none">
-          {/* Centered Message Icon */}
-          <div className="mb-4">
-            <svg
-              className="w-12 h-12 text-[#001e2b]"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H7l-5 4V6c0-1.1.9-2 2-2z" />
-            </svg>
+        // Empty State: Featuring the Animated Bot Mascot
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center select-none bg-white">
+          {/* Animated Mascot Presentation */}
+          <div className="mb-4 relative">
+            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-emerald-100 via-teal-50 to-white flex items-center justify-center border-2 border-emerald-200/80 shadow-lg shadow-emerald-500/10">
+              <AnimatedBotMascot size="lg" showStatus={true} />
+            </div>
           </div>
 
           {/* Heading */}
-          <h3 className="text-[20px] font-bold text-gray-900 tracking-tight mb-2">
-            No messages
+          <h3 className="text-[20px] font-bold text-slate-900 tracking-tight mb-1.5">
+            No messages yet
           </h3>
 
           {/* Subtext */}
-          <p className="text-sm text-gray-500 max-w-[260px] mb-8 leading-relaxed">
-            Messages from the team will be shown here
+          <p className="text-sm text-slate-500 max-w-[280px] mb-7 leading-relaxed">
+            Dr. MediBot is connected to the Universal Chatbot AI Engine to answer your questions in English, Tamil, and Tanglish.
           </p>
 
-          {/* Green "Ask a question" Button */}
+          {/* Website Theme Emerald Button */}
           <button
             onClick={() => handleStartQuestion()}
-            className="bg-[#005a3c] hover:bg-[#004a31] active:scale-98 text-white px-6 py-3.5 rounded-full font-medium text-sm flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg transition-all duration-150 cursor-pointer"
+            className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-700 hover:to-teal-700 active:scale-98 text-white px-7 py-3.5 rounded-full font-bold text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-600/30 hover:shadow-xl transition-all duration-150 cursor-pointer"
           >
+            <Sparkles className="w-4 h-4 text-emerald-200" />
             <span>Ask a question</span>
-            {/* White question circle badge */}
-            <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center text-[#005a3c]">
+            <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-white ml-0.5">
               <span className="text-[12px] font-bold leading-none">?</span>
             </div>
           </button>
         </div>
       ) : (
         // Active Chat Messages Area
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#fafbfc]">
+        <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
           {/* Messages Stream */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
             {messages.map((msg) => {
@@ -230,32 +226,49 @@ const MessagesTab = ({
               return (
                 <div
                   key={msg.id}
-                  className={`flex flex-col ${
-                    isUser ? "items-end" : "items-start"
+                  className={`flex items-end gap-2 ${
+                    isUser ? "flex-row-reverse" : "flex-row"
                   }`}
                 >
+                  {!isUser && (
+                    <div className="w-7 h-7 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center overflow-hidden shrink-0 mb-1">
+                      <AnimatedBotMascot size="sm" showStatus={false} />
+                    </div>
+                  )}
+
                   <div
-                    className={`max-w-[82%] px-4 py-2.5 rounded-2xl text-[13.5px] leading-relaxed ${
-                      isUser
-                        ? "bg-[#005a3c] text-white rounded-br-xs shadow-xs"
-                        : "bg-white text-gray-800 border border-gray-150 rounded-bl-xs shadow-2xs"
+                    className={`flex flex-col ${
+                      isUser ? "items-end" : "items-start"
                     }`}
                   >
-                    <p className="whitespace-pre-line">{msg.text}</p>
+                    <div
+                      className={`max-w-[84%] px-4 py-2.5 rounded-2xl text-[13.5px] leading-relaxed ${
+                        isUser
+                          ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-br-xs shadow-md shadow-emerald-700/15"
+                          : "bg-white text-slate-800 border border-emerald-100 rounded-bl-xs shadow-xs"
+                      }`}
+                    >
+                      <p className="whitespace-pre-line">{msg.text}</p>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 px-1">
+                      {msg.timestamp}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-gray-400 mt-1 px-1">
-                    {msg.timestamp}
-                  </span>
                 </div>
               );
             })}
 
             {/* Typing Indicator */}
             {isTyping && (
-              <div className="flex items-center gap-1.5 bg-white border border-gray-150 rounded-2xl px-3.5 py-2.5 w-fit shadow-2xs">
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center overflow-hidden shrink-0">
+                  <AnimatedBotMascot size="sm" showStatus={false} />
+                </div>
+                <div className="flex items-center gap-1.5 bg-white border border-emerald-150 rounded-2xl px-3.5 py-2.5 w-fit shadow-xs">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                  <span className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                  <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-bounce"></span>
+                </div>
               </div>
             )}
 
@@ -263,37 +276,43 @@ const MessagesTab = ({
           </div>
 
           {/* Suggestion Chips */}
-          <div className="px-4 py-2 bg-white/70 border-t border-gray-100 flex gap-1.5 overflow-x-auto no-scrollbar">
+          <div className="px-4 py-2 bg-white/80 backdrop-blur-xs border-t border-slate-100 flex gap-1.5 overflow-x-auto no-scrollbar">
             <button
-              onClick={() => sendMessage("Track my current order")}
-              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer"
+              onClick={() => sendMessage("Dolo 650 irukka?")}
+              className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/70 px-3 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer font-medium"
+            >
+              💊 Dolo 650 irukka?
+            </button>
+            <button
+              onClick={() => sendMessage("Track my medicine order status")}
+              className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/70 px-3 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer font-medium"
             >
               📦 Track Order
             </button>
             <button
-              onClick={() => sendMessage("How do I upload a prescription?")}
-              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer"
+              onClick={() => sendMessage("How do I upload a doctor prescription?")}
+              className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/70 px-3 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer font-medium"
             >
               📄 Upload Prescription
             </button>
             <button
-              onClick={() => sendMessage("Can I talk to a pharmacist?")}
-              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer"
+              onClick={() => sendMessage("What are the available fever medicines?")}
+              className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/70 px-3 py-1 rounded-full whitespace-nowrap transition-colors cursor-pointer font-medium"
             >
-              💊 Pharmacist Advice
+              🩺 Fever Medicines
             </button>
           </div>
 
           {/* Bottom Chat Input Bar */}
-          <div className="p-3 bg-white border-t border-gray-150">
-            <div className="flex items-center gap-2 bg-[#f4f6f8] rounded-2xl px-3 py-1.5 border border-gray-200 focus-within:border-[#00684a] focus-within:bg-white transition-colors">
+          <div className="p-3 bg-white border-t border-slate-200">
+            <div className="flex items-center gap-2 bg-slate-50 rounded-2xl px-3.5 py-1.5 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/15 focus-within:bg-white transition-all">
               <input
                 type="text"
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Write a message..."
-                className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 placeholder-gray-400 py-1"
+                placeholder="Ask Dr. MediBot in English / Tanglish..."
+                className="flex-1 bg-transparent border-none outline-none text-sm text-slate-800 placeholder-slate-400 py-1"
               />
               <button
                 type="button"
@@ -301,8 +320,8 @@ const MessagesTab = ({
                 disabled={!inputVal.trim()}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                   inputVal.trim()
-                    ? "bg-[#005a3c] text-white hover:bg-[#004a31] cursor-pointer"
-                    : "text-gray-300 cursor-not-allowed"
+                    ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 cursor-pointer shadow-md shadow-emerald-600/30"
+                    : "text-slate-300 cursor-not-allowed"
                 }`}
                 aria-label="Send message"
               >

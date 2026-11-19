@@ -4,6 +4,7 @@ import { Outlet } from "react-router-dom";
 import Header from "./LandingPage/Header";
 import Footer from "./LandingPage/Footer";
 import MobileBottomNav from "./MobileBottomNav";
+import ChatbotWidget from "./Chatbot/ChatbotWidget";
 
 const MainLayout = () => {
   useEffect(() => {
@@ -29,6 +30,7 @@ const MainLayout = () => {
 
       <Footer />
       <MobileBottomNav />
+      <ChatbotWidget />
     </div>
   );
 };
