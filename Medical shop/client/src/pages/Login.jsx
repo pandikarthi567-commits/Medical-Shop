@@ -90,6 +90,33 @@ const Login = () => {
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
+  // Initialize Google Identity Services (GSI) for Google One Tap & Credentials
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.google?.accounts?.id && googleClientId) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response) => {
+            if (response?.credential) {
+              await handleGoogleAuth(response.credential);
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+
+        // Softly prompt One Tap if user is already signed into Google in Chrome
+        window.google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed()) {
+            console.info("Google One Tap suppressed:", notification.getNotDisplayedReason());
+          }
+        });
+      } catch (gisErr) {
+        console.warn("Could not initialize Google Identity Services:", gisErr);
+      }
+    }
+  }, [googleClientId]);
+
   useEffect(() => {
     let interval = null;
     if (timer > 0) {
@@ -152,7 +179,7 @@ const Login = () => {
   const triggerGoogleLogin = () => {
     clearAlerts();
 
-    // 1. Use Google OAuth2 Token Client (Popup flow) - completely bypasses FedCM & third-party cookie restrictions
+    // 1. Use Google OAuth2 Token Client (Popup flow)
     if (typeof window !== "undefined" && window.google?.accounts?.oauth2 && googleClientId) {
       try {
         setOauthLoading(true);
@@ -185,8 +212,18 @@ const Login = () => {
             }
           },
           error_callback: (err) => {
-            console.warn("Google OAuth popup error:", err);
             setOauthLoading(false);
+            if (err?.type === "popup_closed") {
+              console.info("Google OAuth popup closed by user or origin check.");
+              setError(
+                "Google Sign-In popup was closed. If the popup closed automatically, verify that http://localhost:5174 is in Authorized JavaScript origins in Google Cloud Console, or enter your email below to sign in."
+              );
+            } else if (err?.type === "popup_failed_to_open") {
+              setError("Popup was blocked by your browser. Please allow popups for localhost or enter your email below.");
+            } else {
+              console.warn("Google OAuth popup notice:", err);
+              setError("Google Sign-In could not complete (" + (err.message || err.type || "error") + "). Please use the email form below.");
+            }
             setShowOAuthModal(true);
           },
         });
@@ -199,7 +236,7 @@ const Login = () => {
       }
     }
 
-    // 2. Fallback modal
+    // 2. Direct fallback modal
     setShowOAuthModal(true);
   };
 

@@ -135,17 +135,11 @@ const AnimatedBotMascot = ({ size = "md", isHovered = false, showStatus = true }
         <circle cx="60.5" cy="46.5" r="1.5" fill="#ffffff" />
 
         {/* Cute Smiling Mouth */}
-        <motion.path
-          d="M46 54C48 57 52 57 54 54"
+        <path
+          d={isHovered ? "M44 53C47 59 53 59 56 53" : "M46 54C48 57 52 57 54 54"}
           stroke="#34d399"
           strokeWidth="2"
           strokeLinecap="round"
-          animate={
-            isHovered
-              ? { d: "M44 53C47 59 53 59 56 53" }
-              : { d: "M46 54C48 57 52 57 54 54" }
-          }
-          transition={{ duration: 0.2 }}
         />
 
         {/* Cute Rosy Cheeks */}
